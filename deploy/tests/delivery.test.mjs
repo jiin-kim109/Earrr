@@ -17,6 +17,7 @@ import {
   readMetadata,
   referenceStatuses,
   releaseFor,
+  run,
   runtimeManifest,
   verifyArtifact,
   verifyHealth,
@@ -24,7 +25,7 @@ import {
 } from '../lib.mjs';
 import { loadRuntimeEnvironment, runtimeSettings } from '../sync-runtime.mjs';
 import { copyRuntimeBuild } from '../package.mjs';
-import { deploy } from '../deploy.mjs';
+import { deploy, submitAndVerifyDeployment } from '../deploy.mjs';
 import { publishRelease } from '../release.mjs';
 
 const commitSha = '0123456789abcdef0123456789abcdef01234567';
@@ -144,6 +145,121 @@ test('paused manual deployment and release stop before reading artifacts or call
     publishRelease(paused, { artifact: 'missing.zip', metadataFile: 'missing.json', metadata }),
     /paused pending explicit user approval/,
   );
+});
+
+test('deployment waits for successful Kudu completion without the false-negative runtime tracker', async () => {
+  const events = [];
+  const receipt = { id: '7511f6ac-99c5-41e2-a541-71e619d01a64', status: 4, complete: true };
+  const result = await submitAndVerifyDeployment(config, 'fixture.zip', metadata, {
+    runAzure: (target, args, options) => {
+      events.push('submit-and-poll');
+      assert.equal(target, config);
+      assert.equal(args[args.indexOf('--src-path') + 1], 'fixture.zip');
+      assert.equal(args[args.indexOf('--async') + 1], 'false');
+      assert.equal(args[args.indexOf('--track-status') + 1], 'false');
+      assert.equal(args[args.indexOf('--output') + 1], 'json');
+      assert.equal(options.capture, true);
+      assert.equal(options.timeout, 1_260_000);
+      return JSON.stringify(receipt);
+    },
+    verify: async (target, expected) => {
+      events.push('infrastructure-and-exact-health');
+      assert.equal(target, config);
+      assert.equal(expected, metadata);
+      return { health: healthy };
+    },
+  });
+  assert.deepEqual(events, ['submit-and-poll', 'infrastructure-and-exact-health']);
+  assert.deepEqual(result, { health: healthy, deployment: { id: receipt.id, status: 4 } });
+});
+
+test('submission rejection and Kudu polling failures never fall back to an already healthy site', async () => {
+  for (const message of [
+    'Azure upload rejected: HTTP 409',
+    'Kudu deployment failed: status 3',
+    'Kudu deployment polling timed out',
+    'Azure command timeout: ETIMEDOUT',
+  ]) {
+    const failure = new Error(message);
+    let healthChecks = 0;
+    await assert.rejects(
+      submitAndVerifyDeployment(config, 'fixture.zip', metadata, {
+        runAzure: () => {
+          throw failure;
+        },
+        verify: async () => {
+          healthChecks++;
+          return { health: healthy };
+        },
+      }),
+      (error) => error === failure,
+    );
+    assert.equal(healthChecks, 0);
+  }
+});
+
+test('a stalled CLI process has a real bounded deadline and fails explicitly', () => {
+  assert.throws(
+    () =>
+      run(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+        capture: true,
+        timeout: 150,
+      }),
+    /exceeded its 150ms command deadline/,
+  );
+});
+
+test('successful CLI exit still requires a valid terminal Kudu receipt before health verification', async () => {
+  for (const receipt of [
+    null,
+    {},
+    { id: 'fixture', status: 0 },
+    { id: 'fixture', status: 1 },
+    { id: 'fixture', status: 2 },
+    { id: 'fixture', status: 3 },
+    { id: 'fixture', status: 4, complete: false },
+    { id: '', status: 4 },
+    { id: 'unexpected/receipt', status: 4 },
+  ]) {
+    let healthChecks = 0;
+    await assert.rejects(
+      submitAndVerifyDeployment(config, 'fixture.zip', metadata, {
+        runAzure: () => JSON.stringify(receipt),
+        verify: async () => {
+          healthChecks++;
+          return { health: healthy };
+        },
+      }),
+      /completed successful Kudu deployment receipt/,
+    );
+    assert.equal(healthChecks, 0);
+  }
+  await assert.rejects(
+    submitAndVerifyDeployment(config, 'fixture.zip', metadata, {
+      runAzure: () => 'malformed JSON',
+    }),
+    SyntaxError,
+  );
+});
+
+test('completed upload cannot bypass stale-release, artifact health or infrastructure failures', async () => {
+  for (const message of [
+    'Expected new release/commit does not match the live site',
+    'Key Vault reference is not resolved',
+    'Client bootstrap or owned-origin verification failed',
+  ]) {
+    const failure = new Error(message);
+    await assert.rejects(
+      submitAndVerifyDeployment(config, 'fixture.zip', metadata, {
+        runAzure: () => JSON.stringify({ id: 'fixture-deployment', status: 4 }),
+        verify: async (_target, expected) => {
+          assert.equal(expected, metadata);
+          throw failure;
+        },
+      }),
+      (error) => error === failure,
+    );
+  }
 });
 
 test('an artifact cannot claim a different commit or uncommitted source changes', () => {

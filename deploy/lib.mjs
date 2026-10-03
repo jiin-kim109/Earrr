@@ -13,7 +13,13 @@ export function isMain(metaUrl) {
 }
 
 export function run(command, args, options = {}) {
-  const { cwd = projectRoot, sensitive = false, capture = false, env = process.env } = options;
+  const {
+    cwd = projectRoot,
+    sensitive = false,
+    capture = false,
+    env = process.env,
+    timeout,
+  } = options;
   let executable = command;
   let arguments_ = args;
   if (process.platform === 'win32' && ['az', 'gh', 'npm'].includes(command)) {
@@ -32,7 +38,10 @@ export function run(command, args, options = {}) {
     encoding: 'utf8',
     stdio: sensitive || capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
     maxBuffer: 16 * 1024 * 1024,
+    timeout,
   });
+  if (result.error?.code === 'ETIMEDOUT')
+    throw new Error(`${command} exceeded its ${timeout}ms command deadline.`);
   if (result.error)
     throw new Error(`${command} could not start: ${result.error.code ?? 'unknown error'}`);
   if (result.status !== 0) {

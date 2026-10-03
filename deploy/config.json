@@ -82,7 +82,7 @@
     "federatedCredentialId": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourcegroups/rg-earrr-prod/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-earrr-github-prod/federatedIdentityCredentials/github-production",
     "mainBranchPolicyId": 61808004,
     "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:jiin-kim109/Earrr:environment:production",
+    "subject": "repo:jiin-kim109@57239105/Earrr@1402500494:environment:production",
     "audience": "api://AzureADTokenExchange"
   },
   "secrets": {

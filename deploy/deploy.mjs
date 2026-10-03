@@ -12,6 +12,55 @@ import {
 import { verifyDeployment, verifyInfrastructure } from './verify.mjs';
 import { publishRelease } from './release.mjs';
 
+export async function submitAndVerifyDeployment(
+  config,
+  artifact,
+  metadata,
+  { runAzure = azure, verify = verifyDeployment } = {},
+) {
+  const receipt = JSON.parse(
+    runAzure(
+      config,
+      [
+        'webapp',
+        'deploy',
+        '--resource-group',
+        config.resourceGroup,
+        '--name',
+        config.webapp.name,
+        '--src-path',
+        artifact,
+        '--type',
+        'zip',
+        '--clean',
+        'false',
+        '--restart',
+        'true',
+        '--async',
+        'false',
+        '--track-status',
+        'false',
+        '--timeout',
+        '1200000',
+        '--output',
+        'json',
+      ],
+      { capture: true, timeout: 1_260_000 },
+    ),
+  );
+  if (
+    !receipt ||
+    typeof receipt !== 'object' ||
+    typeof receipt.id !== 'string' ||
+    !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(receipt.id) ||
+    receipt.status !== 4 ||
+    receipt.complete === false
+  )
+    throw new Error('Azure did not return a completed successful Kudu deployment receipt.');
+  const verified = await verify(config, metadata);
+  return { ...verified, deployment: { id: receipt.id, status: receipt.status } };
+}
+
 export async function deploy(config, { artifact, metadataFile, publish = false }) {
   assertDeploymentAuthorized(config);
   assertEnvironment(config);
@@ -19,31 +68,7 @@ export async function deploy(config, { artifact, metadataFile, publish = false }
   verifyArtifact(artifact, metadata);
   await assertUnreleased(config, metadata);
   verifyInfrastructure(config);
-  azure(config, [
-    'webapp',
-    'deploy',
-    '--resource-group',
-    config.resourceGroup,
-    '--name',
-    config.webapp.name,
-    '--src-path',
-    artifact,
-    '--type',
-    'zip',
-    '--clean',
-    'false',
-    '--restart',
-    'true',
-    '--async',
-    'false',
-    '--track-status',
-    'true',
-    '--timeout',
-    '1200000',
-    '--output',
-    'none',
-  ]);
-  const verified = await verifyDeployment(config, metadata);
+  const verified = await submitAndVerifyDeployment(config, artifact, metadata);
   console.log(JSON.stringify(verified, null, 2));
   if (publish) await publishRelease(config, { artifact, metadataFile, metadata });
   return metadata;

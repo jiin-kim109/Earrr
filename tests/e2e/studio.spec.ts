@@ -76,6 +76,21 @@ async function noPageScroll(page: Page) {
     )
     .toEqual({ horizontal: false, vertical: false });
 }
+async function settledOverlays(page: Page) {
+  await expect(page.locator('[data-slot="popover-content"][data-state="closed"]')).toHaveCount(0);
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().iterations))
+        .map((animation) =>
+          animation.finished.catch((error: unknown) => {
+            if (!(error instanceof DOMException) || error.name !== 'AbortError') throw error;
+          }),
+        ),
+    ),
+  );
+}
 async function chooseInstrument(page: Page, name: 'Piano' | 'Guitar') {
   if (!(await page.getByRole('button', { name: /^Change instrument:/ }).isVisible()))
     await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
@@ -420,6 +435,7 @@ test('starts practice with one click, shows musical playback, and removes redund
     .boundingBox();
   expect(illustration!.width).toBeGreaterThanOrEqual(50);
   await page.keyboard.press('Escape');
+  await settledOverlays(page);
   expect(
     (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
       .violations,
@@ -1059,6 +1075,7 @@ for (const viewport of [
     expect(microphone.x).toBeGreaterThanOrEqual(0);
     expect(microphone.x + microphone.width).toBeLessThanOrEqual(viewport.width);
     await page.keyboard.press('Escape');
+    await settledOverlays(page);
     expect(
       (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
         .violations,
@@ -1793,7 +1810,7 @@ test('keeps answer facts and marks without individual verdict copy or a duplicat
   }
   await expect(player(page).getByRole('region', { name: 'Pass condition' })).toContainText('8/10');
   await expect(page.getByTestId('round-score')).toHaveCount(0);
-  await expect(page.getByTestId('interval-size')).toContainText('semitones');
+  await expect(page.getByTestId('interval-size')).toHaveText(/^\d+ semitones?$/);
   await page.screenshot({
     path: 'test-results\\answer-without-verdict.png',
     fullPage: true,
@@ -2860,7 +2877,8 @@ test('chapter hover stays quiet and desktop marks are larger than mobile marks',
   const large = (await marks.first().boundingBox())!;
   expect(large.height).toBeGreaterThanOrEqual(40);
   await page.setViewportSize({ width: 390, height: 844 });
-  expect((await marks.first().boundingBox())!.height).toBe(28);
+  await expect(marks.first()).toBeVisible();
+  await expect.poll(async () => (await marks.first().boundingBox())?.height).toBe(28);
   await noPageScroll(page);
 });
 

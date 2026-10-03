@@ -45,6 +45,7 @@ export class AudioEngine {
   private generation = 0;
   private voiceGeneration = 0;
   private outputDevice = '';
+  private playbackStartedAt: number | null = null;
   private readonly bank = new SampleBank();
 
   constructor(private readonly onVoiceError: (error: Error) => void = () => undefined) {}
@@ -238,6 +239,7 @@ export class AudioEngine {
     );
     if (generation !== this.generation) return false;
     const start = context.currentTime + 0.08;
+    this.playbackStartedAt = start;
     const polyphony = Math.max(
       1,
       ...plan.events.map(
@@ -271,6 +273,7 @@ export class AudioEngine {
         for (const note of this.notes) this.release(note);
         sentinel.disconnect();
         this.sentinel = null;
+        this.playbackStartedAt = null;
         this.completion = null;
         resolve(true);
       };
@@ -279,6 +282,7 @@ export class AudioEngine {
 
   stop() {
     this.generation++;
+    this.playbackStartedAt = null;
     for (const note of this.notes) this.release(note);
     if (this.sentinel) {
       this.sentinel.onended = null;
@@ -288,6 +292,12 @@ export class AudioEngine {
     }
     this.completion?.(false);
     this.completion = null;
+  }
+
+  playbackTime(): number | null {
+    return this.context && this.playbackStartedAt !== null
+      ? this.context.currentTime - this.playbackStartedAt
+      : null;
   }
 
   private release(note: ScheduledNote) {

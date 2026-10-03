@@ -109,6 +109,26 @@ afterEach(() => {
 });
 
 describe('audio-clock scheduling and cancellation', () => {
+  it('reports the actual scheduled music clock and clears it after completion or interruption', async () => {
+    vi.stubGlobal('AudioContext', Context);
+    const engine = new AudioEngine();
+    expect(engine.playbackTime()).toBeNull();
+    const playing = engine.play(plan);
+    Context.current.finishResume();
+    await vi.waitFor(() => expect(Context.current.sources).toHaveLength(2));
+    expect(engine.playbackTime()).toBeCloseTo(-0.08);
+    Context.current.currentTime = 5.58;
+    expect(engine.playbackTime()).toBeCloseTo(0.5);
+    Context.current.sources.at(-1)!.onended?.();
+    await expect(playing).resolves.toBe(true);
+    expect(engine.playbackTime()).toBeNull();
+    const replay = engine.play(plan);
+    await vi.waitFor(() => expect(engine.playbackTime()).not.toBeNull());
+    engine.stop();
+    await expect(replay).resolves.toBe(false);
+    expect(engine.playbackTime()).toBeNull();
+  });
+
   it('fades interrupted notes before a rapid replay starts and releases old voices once', async () => {
     vi.stubGlobal('AudioContext', Context);
     const engine = new AudioEngine();

@@ -13,6 +13,7 @@ import type { Session } from '../types/session.types.js';
 import { emptyProgress, updateProgress } from './progress.service.js';
 import type { ProgressService } from './progress.service.js';
 import { chords, intervalNames, inversionNames, parsePitch, scales } from './exercise/music.js';
+import { normalizeTaskAnswer } from './exercise/tasks.js';
 
 export class GradingService {
   constructor(
@@ -85,6 +86,7 @@ function describe(field: AnswerField, value: MusicalAnswer[AnswerField]): string
 }
 
 export function gradeAnswer(exercise: Exercise, answer: MusicalAnswer): Grade {
+  answer = normalizeTaskAnswer(exercise, answer);
   const missing = exercise.required.filter(
     (field) =>
       answer[field] === undefined || (field === 'root' && parsePitch(answer.root!) === null),
@@ -220,7 +222,7 @@ const clean = (text: string) => text.toLowerCase().replace(/[\s()_-]/g, '');
 
 export function parseSoloAnswer(
   text: string,
-  exercise: { kind: ExerciseKind },
+  exercise: { kind: ExerciseKind; task?: Exercise['task'] },
 ): MusicalAnswer | null {
   const raw = text
     .trim()
@@ -237,6 +239,14 @@ export function parseSoloAnswer(
   if (exercise.kind === 'pitch')
     return /^[A-G](?:[#b]| sharp| flat)?\d?$/i.test(raw) ? { root: raw } : null;
   if (exercise.kind === 'degree' || exercise.kind === 'melody' || exercise.kind === 'progression') {
+    if (
+      exercise.kind === 'progression' &&
+      exercise.task?.kind === 'complete' &&
+      /^[A-G]/.test(raw)
+    ) {
+      const chord = parseSoloAnswer(raw, { kind: 'chord' });
+      if (chord?.root) return chord;
+    }
     const degrees: Record<string, number> = {
       do: 1,
       re: 2,
@@ -256,11 +266,17 @@ export function parseSoloAnswer(
       vii: 7,
     };
     const parts = lower.split(/[\s,;>\u2013\u2014-]+/).filter(Boolean);
-    const numbers = parts.map((item) => (/^\d$/.test(item) ? Number(item) : degrees[item]));
+    const numbers = parts.map((item) => {
+      const numeral =
+        exercise.kind === 'progression'
+          ? /^(vii|iii|vi|iv|ii|v|i)(?:maj7|7|[°oø]7?)?$/.exec(item)?.[1]
+          : undefined;
+      return /^\d$/.test(item) ? Number(item) : degrees[numeral ?? item];
+    });
     if (!numbers.length || numbers.some((value) => value === undefined || value < 1 || value > 7))
       return null;
     const valid = numbers.filter((value): value is number => value !== undefined);
-    return exercise.kind === 'degree'
+    return exercise.kind === 'degree' || (exercise.task?.kind === 'complete' && valid.length === 1)
       ? valid.length === 1
         ? { degree: valid[0]! }
         : null

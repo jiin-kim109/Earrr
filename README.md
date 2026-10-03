@@ -36,8 +36,16 @@ when you choose. Your ear companion grows with completed chapters, not invented
 points or rushed answers.
 
 The AI handles the conversation. A separate musical engine constructs examples,
-knows the played notes, and grades the answer. The piano shows what actually
+knows the played notes, and grades the answer. Musical displays show what actually
 sounded, not what the model guessed.
+
+Listen for a missing melody note, complete a chord progression, or compare a
+familiar chord with a new harmonic color. Each skill gets a fitting view:
+piano keys for pitch and inversions, melodic contours, chord-function paths and
+clear extension tones. The coach speaks the clues, so none of this requires
+watching the screen.
+
+<img src="docs/images/progression.png" alt="A chord progression shown as separate chord symbols, voicings and harmonic functions, with the missing chord revealed after grading." width="100%" />
 
 ## Make yourself comfortable
 

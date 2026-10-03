@@ -70,8 +70,9 @@ without excessive praise. The player is treated as a musician at every level.
     demonstrates labeled musical comparisons before questions. The learner may
     ask follow-ups, replay concepts, or skip the introduction conversationally.
     Demonstrations never count as scored practice or checkpoint evidence.
-    Display their actual notes through the same read-only piano diagram API
-    used for graded answers. Keep Skip in the lower action row as a borderless
+    Display their actual notes through the same read-only musical display contract
+    used for graded answers. Preserve the piano for pitch, intervals and core
+    chord/bass work. Keep Skip in the lower action row as a borderless
     icon/text button with a quiet hover fill, not beside the Tutorial label.
     Finish with a readiness invitation and wait. Only an explicit start_practice
     tool call after agreement or Skip begins exercises. Pitch-direction practice
@@ -95,7 +96,7 @@ without excessive praise. The player is treated as a musician at every level.
 15. Use shadcn/ui and Tailwind utilities with short non-bouncy transitions and
     reduced-motion support. Keep the voice visualizer visible at all times in
     lesson states, with a quiet idle shape; only actual coach
-    speech animates it. Music never moves it. Keep tutorial/graded piano diagrams
+    speech animates it. Music never moves it. Keep tutorial/graded musical diagrams
     and verdict evidence in a separate slot, never replacing the visualizer.
     The agent handles hints and explanations; do not add duplicate guide controls.
 16. Group server controllers, services, repositories, and named type contracts
@@ -172,14 +173,15 @@ without excessive praise. The player is treated as a musician at every level.
     fixed counts of question types before shuffling their order; do not use hidden
     diversity gates. End immediately at three misses, otherwise judge at ten.
     Both outcomes clear the next tally and wait for explicit start_round consent.
-    Keep the final graded piano, note facts and filled answer marks visible while
+    Keep the final graded musical display, note facts and filled answer marks visible while
     waiting. Use the ordinary grading layout with Round passed / Round not passed
     replacing its heading, not a separate completion screen or Last answer recap.
-    Place a Restart exercises text action left of the Next lesson outline button.
+    Use the same small outlined, rounded button and typography as Hear again for
+    Restart exercises. Center it alone or center the group with Next lesson on its right.
     Restart clears old result/evidence immediately, before asynchronous preparation.
     Waiting survives navigation and reconnect. Hints
     remain tracked for mastery, not an additional passing gate.
-25. Reveal a dedicated labeled piano only from committed grading facts, never
+25. Reveal labeled musical evidence only from committed grading facts, never
     from a model guess or an unanswered question. Clear it before playing a new
     question. Keep it separate from the interactive audition instruments.
     Do not repeat individual verdict labels in the main reveal; the answer,
@@ -266,7 +268,7 @@ without excessive praise. The player is treated as a musician at every level.
     presentation defaults, never fabricated learning. An early Start training
     click unlocks audio immediately and waits for remaining initialization inside
     that button's spinner. Preserve preparation errors and owner cancellation.
-43. Put the lesson piano above the voice visualizer. The intro has no coach
+43. Put the lesson's musical display above the voice visualizer. The intro has no coach
     visualizer; retain its microphone level meter. Use the same Instrument sound
     label and selector typography in intro and in-game Audio settings.
     Keep the in-game visualizer visible and independent of music playback.
@@ -291,6 +293,26 @@ without excessive praise. The player is treated as a musician at every level.
     microphone/default/communications alias. Speaker selection does not request
     microphone access; use a browser-native speaker chooser only if the browser
     supports it and actually denies a requested output device.
+47. Welcome and the entire Pitch & intervals chapter keep their existing
+    questions, audio, demonstrations and piano presentation. Later sections use
+    the question format that serves the skill, not a forced graphic replacement.
+    Core triads, roots and inversions retain piano. Scale degrees use a tonal
+    degree rail; scales/modes reveal degree and semitone patterns; melodies reveal
+    a degree contour; progressions show separate chord symbols/functions/voicings;
+    seventh colors and advanced harmony reveal actual chord tones and upper colors.
+48. Melody and progression rounds mix five missing-position questions with five
+    whole-sequence recall questions. Modes, seventh colors, additions, extensions
+    and altered dominants mix four same-root reference comparisons with six
+    independent identifications. Keep the existing musical target allocations and
+    ten-question 8/10 rule. Each changing task and every given clue is spoken.
+    Missing positions are graded as one scale degree; complete spoken sequences
+    may also identify that position. Comparative questions grade only the second
+    chord/scale. Pending graphics show only declared clues, unknown slots or a
+    known reference, never hidden pitch/quality/contour information. A quiet
+    position highlight follows the actual music clock and respects reduced motion.
+    New formats apply to newly planned rounds; old saved questions keep their
+    original audio, required answers and grading. Tutorials and saved answer
+    review share the deterministic display without changing mastery.
 
 ## Accessibility & Inclusion
 

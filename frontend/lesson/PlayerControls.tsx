@@ -91,21 +91,23 @@ export function PlayerControls() {
     );
   if (session?.awaitingRoundChoice)
     return (
-      <div className="flex w-full items-center justify-between gap-3">
+      <div className="flex w-full flex-wrap items-center justify-center gap-2">
         <Button
-          variant="text"
+          variant="outline"
           size="sm"
-          className="rounded-full px-1 text-xs sm:text-sm"
+          className="rounded-full px-5"
           onClick={() => {
             void studio.startRound();
           }}
         >
+          <RotateCcw />
           Restart exercises
         </Button>
         {state.snapshot?.course.round.previous?.passed && next && (
           <Button
             variant="outline"
-            className="rounded-full"
+            size="sm"
+            className="rounded-full px-5"
             disabled={!nextUnlocked}
             onClick={() => {
               void studio.focus(next);

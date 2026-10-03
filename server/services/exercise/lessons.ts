@@ -95,13 +95,15 @@ export const lessonNotes: Record<SkillId, LessonNotes> = {
     answers: 'Major, natural/harmonic/melodic minor, major/minor pentatonic, or blues',
   },
   modes: {
-    introduction: 'Hear how changing one or two scale degrees gives a mode its character.',
+    introduction:
+      'Hear the characteristic degrees of each mode. Some questions compare a major scale with a second scale on the same tonic; name the second one.',
     listenFor:
       'Listen for a characteristic degree: Dorian has a natural sixth, Lydian a raised fourth, and Mixolydian a lowered seventh.',
     answers: 'Dorian, Phrygian, Lydian, Mixolydian, Locrian, or whole tone',
   },
   melodies: {
-    introduction: 'After a cadence, remember a short melody as a sequence of scale degrees.',
+    introduction:
+      'Hear a short melody after a cadence. Either recall the whole phrase as scale degrees, or identify one missing degree with the other positions given.',
     listenFor:
       'Hear the overall shape first, then locate its starting note relative to home. Rhythm is not graded.',
     answers: 'A sequence such as 1, 3, 2 or do, mi, re',
@@ -115,7 +117,7 @@ export const lessonNotes: Record<SkillId, LessonNotes> = {
   },
   'seventh-colors': {
     introduction:
-      'Distinguish the more tense seventh qualities from familiar major, minor, and dominant sevenths.',
+      'Distinguish seventh-chord colors. Some questions first play a named foundation, then a changed chord on the same root. Identify the second chord; others play just one.',
     listenFor:
       'Hear the fifth and seventh separately. Half-diminished and fully diminished chords differ in their seventh.',
     answers: 'Major7, minor7, dominant7, half-diminished7, diminished7, or minor-major7',
@@ -128,34 +130,35 @@ export const lessonNotes: Record<SkillId, LessonNotes> = {
   },
   progressions: {
     introduction:
-      'A tonic chord establishes the key. Follow three to five chords by their scale-degree functions.',
+      'After a tonic reference, follow three to five chord functions. Some questions give you all but one function; others ask for the whole sequence.',
     listenFor:
       'Track the roots relative to home. Identify the sequence after the reference chord, not the reference itself.',
     answers: 'Degree numbers or Roman numerals, such as 1, 4, 5, 1',
   },
   'jazz-progressions': {
     introduction:
-      'Follow harmonic movement through diatonic seventh chords, including ii-V-I relationships.',
+      'Follow diatonic seventh-chord movement. Identify the missing function in a given sequence, or recall the whole progression after its tonic reference.',
     listenFor:
       'Use the bass and the pull of guide tones to hear function. Upper voicings can change without changing the root movement.',
     answers: 'Degree numbers or Roman numerals, such as ii, V, I',
   },
   'added-tones': {
     introduction:
-      'Hear sixths and added seconds or ninths without assuming that a seventh is present.',
+      'Hear sixths and added ninths without assuming a seventh. Some questions compare a named triad with the colored chord; identify the second chord.',
     listenFor:
       'Identify the triad underneath the added note. Add2 and add9 are equivalent names for grading.',
     answers: 'Major6, minor6, add2/add9, or minor add9',
   },
   extensions: {
-    introduction: 'Listen beyond the seventh for ninths, elevenths, and thirteenths.',
+    introduction:
+      'Hear ninths, elevenths, and thirteenths. Some questions compare a named seventh chord with its extended version; name the second chord. Others test it on its own.',
     listenFor:
       'Identify the foundation and the highest added color. These teaching voicings keep the important tones audible.',
     answers: 'Major/minor/dominant ninth or thirteenth; minor or dominant eleventh',
   },
   'altered-dominants': {
     introduction:
-      'Hear the particular alteration inside a dominant chord, not just its overall tension.',
+      'Identify the specific alteration in a dominant chord. Some questions compare a plain dominant seventh with the altered version; others play the altered chord alone.',
     listenFor:
       'Distinguish altered fifths from upper tensions. Sharp-eleventh and flat-thirteenth examples retain the natural fifth.',
     answers: '7b9, 7#9, 7b5, 7#5, 7#11, 7b13, or 7alt',

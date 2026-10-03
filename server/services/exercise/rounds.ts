@@ -2,6 +2,7 @@ import type { SkillId, CheckpointRule } from '../../../shared/types/course.js';
 import type { ExerciseTarget } from '../../types/exercise.types.js';
 import { chordPools, essentialIntervals, intervalLessons, scalePools } from './catalog.js';
 import { seededRandom } from './music.js';
+import { comparisonSkills, completionSkills } from './tasks.js';
 
 export const roundRule: CheckpointRule = { questions: 10, correct: 8 };
 
@@ -108,5 +109,40 @@ export function roundPlan(skillId: SkillId, round: number, seed: number): Exerci
     }
   }
   if (targets.length !== 10) throw new Error('Every practice round must contain ten questions.');
+  if (completionSkills.includes(skillId)) {
+    const formats = shuffle(
+      [
+        'complete',
+        'complete',
+        'complete',
+        'complete',
+        'complete',
+        'identify',
+        'identify',
+        'identify',
+        'identify',
+        'identify',
+      ] as const,
+      random,
+    );
+    targets = targets.map((target, index) => ({ ...target, format: formats[index]! }));
+  } else if (comparisonSkills.includes(skillId)) {
+    const formats = shuffle(
+      [
+        'compare',
+        'compare',
+        'compare',
+        'compare',
+        'identify',
+        'identify',
+        'identify',
+        'identify',
+        'identify',
+        'identify',
+      ] as const,
+      random,
+    );
+    targets = targets.map((target, index) => ({ ...target, format: formats[index]! }));
+  }
   return shuffle(targets, random);
 }

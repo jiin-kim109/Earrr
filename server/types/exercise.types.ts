@@ -29,6 +29,10 @@ export interface Exercise {
   status: 'unanswered' | 'answered' | 'skipped';
   roundId?: string;
   roundTargetId?: string;
+  task?:
+    | { kind: 'complete'; gapIndex: number }
+    | { kind: 'compare-chords'; referenceQuality: ChordQuality }
+    | { kind: 'compare-scale' };
 }
 
 export interface ExerciseTarget {
@@ -41,7 +45,51 @@ export interface ExerciseTarget {
   degree?: number;
   scale?: ScaleId;
   length?: number;
+  format?: 'identify' | 'complete' | 'compare';
 }
+
+export type QuestionDisplay =
+  | {
+      kind: 'sequence';
+      subject: 'melody' | 'progression';
+      tonic: string;
+      instruction: string;
+      labels: Array<string | null>;
+      onsets: number[];
+      targetIndex?: number;
+    }
+  | {
+      kind: 'comparison';
+      subject: 'chord' | 'scale';
+      reference: string;
+      instruction: string;
+      onsets: [number, number];
+    }
+  | { kind: 'degree'; tonic: string; instruction: string };
+
+export interface DiagramTone {
+  midi: number;
+  note: string;
+  degree: string;
+  color: boolean;
+}
+
+export type MusicalDiagram =
+  | { kind: 'chord'; root: string; symbol: string; tones: DiagramTone[] }
+  | { kind: 'degree'; tonic: string; degree: number; note: string; midi: number }
+  | {
+      kind: 'melody' | 'scale';
+      tonic: string;
+      points: Array<{ midi: number; note: string; label: string }>;
+      gaps?: number[];
+      targetIndex?: number;
+    }
+  | {
+      kind: 'progression';
+      tonic: string;
+      chords: Array<{ symbol: string; function: string; midi: number[]; notes: string[] }>;
+      targetIndex?: number;
+    };
 
 export interface PublicExercise {
   id: string;
@@ -53,6 +101,7 @@ export interface PublicExercise {
   status: Exercise['status'];
   replayCount: number;
   hintCount: number;
+  question?: QuestionDisplay;
   reveal?: {
     label: string;
     explanation: string;
@@ -65,6 +114,7 @@ export interface PlayedExample {
   midi: number[];
   presentation: 'single' | 'ascending' | 'descending' | 'together' | 'repeated' | 'sequence';
   semitones?: number;
+  diagram?: MusicalDiagram;
 }
 
 export interface TeachingProgress {

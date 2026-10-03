@@ -20,6 +20,7 @@ import type {
 } from '../../../shared/types/course.js';
 import type { Settings } from '../../../shared/types/user.js';
 import type { Exercise, ExerciseTarget } from '../../types/exercise.types.js';
+import { chordFoundation, comparisonSkills, completionSkills, sequenceTask } from './tasks.js';
 
 function event(
   midi: number,
@@ -56,6 +57,10 @@ export function createExercise(options: {
 }): Exercise {
   const { id, seed, skillId, settings, now } = options;
   const target = options.target ?? {};
+  if (target.format === 'complete' && !completionSkills.includes(skillId))
+    throw new Error('Completion is not an exercise format for this lesson.');
+  if (target.format === 'compare' && !comparisonSkills.includes(skillId))
+    throw new Error('Comparison is not an exercise format for this lesson.');
   const random = seededRandom(seed);
   const root = target.root ?? Math.floor(random() * 12);
   const register = choose(random, [3, 4]);
@@ -88,7 +93,9 @@ export function createExercise(options: {
     const inversion = inversionTask
       ? (target.inversion ?? Math.floor(random() * definition.intervals.length))
       : 0;
-    const open = getSkill(skillId).difficulty >= 4 && !inversionTask && random() < 0.5;
+    const comparison = target.format === 'compare';
+    const open =
+      !comparison && getSkill(skillId).difficulty >= 4 && !inversionTask && random() < 0.5;
     const notes = chordNotes(rootMidi, quality, inversion, open);
     const rootTask = skillId === 'chord-roots';
     const suppliedRoot = !['triads', 'seventh-chords', 'chord-roots'].includes(skillId);
@@ -115,7 +122,20 @@ export function createExercise(options: {
     ];
     const events = rootTask
       ? [event(60, 0, 0.65, 'reference'), ...block(notes, 1.3)]
-      : block(notes, 0.2);
+      : comparison
+        ? [
+            ...block(chordNotes(rootMidi, chordFoundation(quality)), 0.2, 1.6, 'reference'),
+            ...block(notes, 2.35),
+          ]
+        : block(notes, 0.2);
+    if (comparison) {
+      const referenceQuality = chordFoundation(quality);
+      exercise.task = { kind: 'compare-chords', referenceQuality };
+      exercise.prompt = `First ${noteName(root)} ${chords[referenceQuality].name}, then a changed chord on the same root. Name the second chord's quality.`;
+      exercise.cue = exercise.prompt;
+    } else if (target.format === 'identify') {
+      exercise.cue = `Root ${noteName(root)}. Name this chord's quality.`;
+    }
     exercise.audio = audio(events, instrument);
     return exercise;
   }
@@ -225,6 +245,7 @@ export function createExercise(options: {
       Object.assign(exercise, {
         kind: 'scale',
         prompt: `Identify the ${skillId === 'modes' ? 'mode or symmetrical scale' : 'scale'}. Its tonic sounds first.`,
+        cue: `Tonic ${noteName(root)}. Name the scale.`,
         expected: { scale },
         required: ['scale'],
         label: `${noteName(root)} ${definition.name}`,
@@ -244,6 +265,22 @@ export function createExercise(options: {
         ],
         instrument,
       );
+      if (target.format === 'compare') {
+        exercise.task = { kind: 'compare-scale' };
+        exercise.prompt = `First ${noteName(root)} major, then a second scale on the same tonic. Name the second scale.`;
+        exercise.cue = exercise.prompt;
+        exercise.audio = audio(
+          [
+            ...scales.major.steps.map((step, index) =>
+              event(rootMidi + step, 0.1 + index * 0.32, 0.28, 'reference'),
+            ),
+            ...definition.steps.map((step, index) =>
+              event(rootMidi + step, 3.35 + index * 0.38, 0.34),
+            ),
+          ],
+          instrument,
+        );
+      }
       break;
     }
     case 'melodies': {
@@ -263,6 +300,7 @@ export function createExercise(options: {
       Object.assign(exercise, {
         kind: 'melody',
         prompt: `After the major-key cadence, name the ${length} melody notes as scale degrees. Rhythm is not graded.`,
+        cue: `In ${noteName(root)} major, recall all ${length} melody notes as scale degrees.`,
         expected: { melody },
         required: ['melody'],
         label: melody.join(' - '),
@@ -315,6 +353,7 @@ export function createExercise(options: {
       Object.assign(exercise, {
         kind: 'progression',
         prompt: `First, the tonic chord in ${noteName(root)} major. Then identify the ${progression.length} chord functions by scale-degree number or Roman numeral. Individual chord qualities are not graded.`,
+        cue: `In ${noteName(root)} major, name all ${length} chord functions after the tonic reference.`,
         expected: { progression },
         required: ['progression'],
         label: progression.map((degree) => roman[degree - 1]).join(' - '),
@@ -336,6 +375,12 @@ export function createExercise(options: {
     }
     default:
       throw new Error(`No generator implemented for ${skillId}.`);
+  }
+  if (target.format === 'complete') {
+    const sequence =
+      exercise.kind === 'melody' ? exercise.expected.melody : exercise.expected.progression;
+    if (!sequence) throw new Error('Completion is supported only for a musical sequence.');
+    sequenceTask(exercise, 1 + Math.floor(random() * (sequence.length - 1)));
   }
   return exercise;
 }

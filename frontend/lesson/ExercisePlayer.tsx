@@ -5,7 +5,7 @@ import { AudioSettings } from '@/audio/AudioSettings';
 import { studio } from '@/studio/studio';
 import { PlayerControls, TutorialReturn } from './PlayerControls.js';
 import { LessonProgress } from './LessonProgress.js';
-import { PianoDiagram } from '@/instruments/PianoDiagram';
+import { MusicalDisplay, QuestionGraphic, useShortDisplay } from './MusicalDisplay.js';
 import { useLesson } from './useLesson.js';
 import { TutorialSteps } from './TutorialSteps.js';
 
@@ -20,13 +20,19 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
   const savedReveal =
     round && snapshot.feedback?.attemptId === lastAttempt ? snapshot.feedback : null;
   const reveal = teaching || state.restartingRound ? null : (state.answerReveal ?? savedReveal);
-  const piano = teaching?.example
+  const evidence = teaching?.example
     ? { example: teaching.example, id: teaching.presentationId }
     : reveal?.example
       ? { example: reveal.example, id: reveal.exerciseId }
       : null;
-  const played = piano?.example;
+  const played = evidence?.example;
+  const question =
+    !teaching && !reveal && !round && !state.restartingRound && current?.status === 'unanswered'
+      ? current.question
+      : undefined;
   const noteSummary = played?.notes.join(played.presentation === 'together' ? ' + ' : ' → ');
+  const short = useShortDisplay();
+  const dense = compact && short && Boolean(played?.diagram || question);
   const title = round
     ? round.passed
       ? 'Round passed'
@@ -70,33 +76,46 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
         )}
       >
         <div className="my-auto flex w-full shrink-0 flex-col items-center">
-          {piano && (
+          {(evidence || question) && (
             <div
               className={cn(
                 'flex w-full max-w-[430px] items-center justify-center',
-                compact ? 'mb-2' : 'mb-4 h-40',
+                dense ? 'mb-1' : compact ? 'mb-2' : 'mb-4 h-40',
               )}
               style={
                 compact
                   ? {
-                      height:
-                        'clamp(2.25rem, calc(var(--app-height, 100dvh) * 0.14 - 2.5rem), 7rem)',
+                      height: dense
+                        ? '3.5rem'
+                        : evidence?.example.diagram || question
+                          ? 'clamp(5.5rem, calc(var(--app-height, 100dvh) * 0.16), 8rem)'
+                          : 'clamp(2.25rem, calc(var(--app-height, 100dvh) * 0.14 - 2.5rem), 7rem)',
                     }
                   : undefined
               }
             >
-              <PianoDiagram example={piano.example} exampleId={piano.id} />
+              {evidence ? (
+                <MusicalDisplay example={evidence.example} exampleId={evidence.id} dense={dense} />
+              ) : question ? (
+                <QuestionGraphic
+                  question={question}
+                  playing={state.musicPlayback?.exerciseId === current?.id}
+                  dense={dense}
+                />
+              ) : null}
             </div>
           )}
           <div
             className={cn(
               'flex w-full items-center justify-center',
-              compact ? 'mb-2 h-12' : 'mb-4 h-24',
+              dense ? 'mb-1 h-4' : compact ? 'mb-2 h-12' : 'mb-4 h-24',
             )}
             style={
               compact
                 ? {
-                    height: 'clamp(1.5rem, calc(var(--app-height, 100dvh) * 0.08 - 1rem), 3rem)',
+                    height: dense
+                      ? '1rem'
+                      : 'clamp(1.5rem, calc(var(--app-height, 100dvh) * 0.08 - 1rem), 3rem)',
                   }
                 : undefined
             }
@@ -116,8 +135,8 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
             {!welcome && (
               <div
                 className={cn(
-                  'flex items-center gap-2.5',
-                  compact ? 'mb-2 min-h-8' : 'mb-3 min-h-9',
+                  dense ? 'sr-only' : 'flex items-center gap-2.5',
+                  !dense && (compact ? 'mb-2 min-h-8' : 'mb-3 min-h-9'),
                 )}
               >
                 <span
@@ -148,14 +167,18 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
               data-testid={round ? 'round-result' : undefined}
               className={cn(
                 'font-medium tracking-tight',
-                compact ? 'text-xl' : 'text-[28px] leading-tight',
+                dense
+                  ? 'text-base leading-tight'
+                  : compact
+                    ? 'text-xl'
+                    : 'text-[28px] leading-tight',
                 round && (round.passed ? 'text-success' : 'text-destructive'),
               )}
               aria-live={snapshot.settings.volume === 0 ? 'polite' : 'off'}
             >
-              {title}
+              {dense && question ? question.instruction : title}
             </h2>
-            {piano && (
+            {evidence && !played?.diagram && (
               <div
                 data-testid={teaching ? 'teaching-example' : 'grade-feedback'}
                 data-feedback-id={reveal?.attemptId ?? undefined}
@@ -180,7 +203,10 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
                 )}
               </div>
             )}
-            {!compact && !reveal && !round && !teaching && current && (
+            {question && !dense && (
+              <p className="mt-2 text-sm text-muted-foreground">{question.instruction}</p>
+            )}
+            {!compact && !question && !reveal && !round && !teaching && current && (
               <p
                 data-testid="exercise-prompt"
                 className="mt-2 max-w-[44ch] text-sm text-muted-foreground"
@@ -193,7 +219,13 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
                 {teaching.narration}
               </p>
             )}
-            <div className={cn(compact ? 'mt-3' : 'mt-5', round && 'w-full max-w-sm')}>
+            <div
+              className={cn(
+                dense ? 'mt-2' : compact ? 'mt-3' : 'mt-5',
+                round && 'max-w-sm',
+                round && (compact && short ? '-mx-4 w-[calc(100%+2rem)]' : 'w-full'),
+              )}
+            >
               {state.busy ||
               state.entering ||
               state.restartingRound ||

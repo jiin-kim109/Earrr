@@ -25,6 +25,8 @@ import { checkpointDescription } from '../progress.service.js';
 import { roundRule } from './rounds.js';
 import type { ProgressService } from '../progress.service.js';
 import { lessonExamples, lessonNotes, teachingSteps } from './lessons.js';
+import { normalizeTaskAnswer, questionDisplay } from './tasks.js';
+import { exerciseDiagram, teachingDiagram } from './diagrams.js';
 
 export function newTeachingProgress(
   lessonId: SkillId,
@@ -185,11 +187,12 @@ export class ExerciseService {
         gradedExerciseId: exercise.id,
       };
     }
-    const grade = gradeAnswer(exercise, answer);
+    const normalized = normalizeTaskAnswer(exercise, answer);
+    const grade = gradeAnswer(exercise, normalized);
     const progress =
       grade.verdict === 'incomplete'
         ? { lessonCompleted: false }
-        : await this.grading.record(session, exercise, answer, grade, false);
+        : await this.grading.record(session, exercise, normalized, grade, false);
     return {
       ok: true,
       notice: { kind: 'answer_graded' },
@@ -357,6 +360,7 @@ export class ExerciseService {
     const step = steps[progress.index];
     if (!step) throw new Error('The saved teaching step does not exist in this lesson.');
     const awaitingPractice = progress.index === steps.length - 1;
+    const diagram = teachingDiagram(progress.lessonId, step);
 
     return {
       lessonId: progress.lessonId,
@@ -367,7 +371,12 @@ export class ExerciseService {
       title: step.title,
       narration: step.narration,
       demoLabel: step.demoLabel ?? null,
-      example: step.audio ? describePlayedExample({ audio: step.audio }, 'all') : null,
+      example: step.audio
+        ? {
+            ...describePlayedExample({ audio: step.audio }, 'all'),
+            ...(diagram ? { diagram } : {}),
+          }
+        : null,
       delivered: progress.delivered,
       autoContinue: progress.autoContinue && !awaitingPractice,
       awaitingPractice,
@@ -529,12 +538,13 @@ export class ExerciseService {
 }
 
 export function exerciseFeedback(attempt: Attempt, exercise: Exercise): AnswerReview {
+  const diagram = exerciseDiagram(exercise);
   return {
     attemptId: attempt.id,
     exerciseId: attempt.exerciseId,
     grade: attempt.grade,
     skipped: attempt.skipped,
-    example: describePlayedExample(exercise),
+    example: { ...describePlayedExample(exercise), ...(diagram ? { diagram } : {}) },
   };
 }
 
@@ -583,6 +593,7 @@ export function publicExercise(exercise: Exercise): PublicExercise {
     (kind === 'interval'
       ? `Two notes ${describePlayedExample(exercise).presentation}.`
       : undefined);
+  const question = questionDisplay(exercise);
   return {
     id,
     skillId,
@@ -593,6 +604,7 @@ export function publicExercise(exercise: Exercise): PublicExercise {
     status,
     replayCount,
     hintCount,
+    ...(question ? { question } : {}),
     ...(status !== 'unanswered'
       ? {
           reveal: {

@@ -1723,13 +1723,28 @@ for (const correct of [7, 8]) {
           name: 'Restart exercises',
           exact: true,
         });
-        await expect(restart).toHaveAttribute('data-variant', 'text');
+        await expect(restart).toHaveAttribute('data-variant', 'outline');
+        await expect(restart).toHaveAttribute('data-size', 'sm');
+        await expect(restart).toHaveCSS('font-size', '14px');
+        await expect(restart).toHaveCSS('font-weight', '500');
         await expect(player(page).getByRole('button', { name: 'Review', exact: true })).toHaveCount(
           0,
         );
         if (correct === 8) {
           const next = player(page).getByRole('button', { name: 'Next lesson', exact: true });
           expect((await next.boundingBox())!.x).toBeGreaterThan((await restart.boundingBox())!.x);
+          const firstBox = (await restart.boundingBox())!;
+          const nextBox = (await next.boundingBox())!;
+          const card = (await player(page).boundingBox())!;
+          expect((firstBox.x + nextBox.x + nextBox.width) / 2).toBeCloseTo(
+            card.x + card.width / 2,
+            0,
+          );
+          expect(firstBox.height).toBe(nextBox.height);
+        } else {
+          const box = (await restart.boundingBox())!;
+          const card = (await player(page).boundingBox())!;
+          expect(box.x + box.width / 2).toBeCloseTo(card.x + card.width / 2, 0);
         }
         await page.screenshot({
           path: `test-results\\round-${correct}-of-10.png`,

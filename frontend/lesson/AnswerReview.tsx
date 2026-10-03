@@ -7,7 +7,7 @@ import { useDesktopLayout } from '@/app/useDesktopLayout';
 import { getAnswerReview } from '@/lib/api';
 import { studio, useStudio } from '@/studio/studio';
 import type { AnswerReview as SavedAnswer } from '../../server/types/grading.types.js';
-import { PianoDiagram } from '@/instruments/PianoDiagram';
+import { MusicalDisplay } from './MusicalDisplay.js';
 import { ReplayIndicator } from '@/audio/ReplayIndicator';
 
 export function AnswerReview({
@@ -112,7 +112,9 @@ export function AnswerReview({
         </div>
         {answer ? (
           <>
-            <PianoDiagram example={answer.example} exampleId={answer.exerciseId} />
+            <div className={answer.example.diagram ? 'h-32' : undefined}>
+              <MusicalDisplay example={answer.example} exampleId={answer.exerciseId} />
+            </div>
             <p className="text-center text-sm font-medium">{answer.grade.expectedLabel}</p>
             <div className="flex justify-center">
               <Button

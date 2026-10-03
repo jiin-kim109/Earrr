@@ -1,0 +1,37 @@
+{%- if name == "start_session" -%}
+Start or resume the existing session. The app normally starts it before connecting.
+{%- elif name == "show_welcome" -%}
+Show section 00 Welcome only when the learner explicitly asks for it. Their current lesson position and question stay parked. Introduce yourself as the AI coach, briefly describe basic-to-advanced ear training without speaking the app name, then ask once whether to begin ear training and wait.
+{%- elif name == "play_exercise" -%}
+Prepare current teaching or the pending planned question. Preserve unanswered questions. This never starts a new round after an outcome; use start_round only with explicit consent.
+{%- elif name == "replay_exercise" -%}
+Replay the example unchanged. Use current/previous normally; exerciseId reviews a specific already-graded answer without changing the current question or score. The review field identifies that known answer. This plays sound directly without another spoken reply. Arpeggiation of an unanswered chord is assisted listening.
+{%- elif name == "submit_answer" -%}
+Silently grade the structured answer for current.exerciseId. The result includes the verdict and any automatically prepared next example. Do not request another example afterward.
+{%- elif name == "give_hint" -%}
+Return a hint for the current question without grading or advancing.
+{%- elif name == "skip_exercise" -%}
+Skip the current practice question without penalty. The server prepares the next question. During teaching prefer start_practice.
+{%- elif name == "pause_session" -%}
+Pause immediately, preserving the current question or introduction.
+{%- elif name == "resume_session" -%}
+Resume and prepare the saved lesson step or question. Do not issue another play tool afterward.
+{%- elif name == "end_session" -%}
+End and save the session. Give a short goodbye; the microphone is released afterward.
+{%- elif name == "inspect_progress" -%}
+Inspect the actual lesson, checkpoint, scores, and course state.
+{%- elif name == "review_answer" -%}
+Read the saved verdict for the last answer without grading again.
+{%- elif name == "select_lesson" -%}
+Select another unlocked lesson only on the player's explicit request. The server prepares its introduction/question if active.
+{%- elif name == "adjust_session" -%}
+Legacy alias for selecting an unlocked lesson. Prefer select_lesson.
+{%- elif name == "teach_lesson" -%}
+Teach/review this lesson. restart=true begins the introduction; stepId selects a named demo. No scoring. Existing questions stay parked by default. Only supply discardRoundId when the learner explicitly confirmed resetting the current round; use course.round.id (or null if no round exists). That clears the active round, never saved learning history.
+{%- elif name == "continue_teaching" -%}
+Continue the introduction after a user question. Use the current teaching.presentationId. In Welcome, call only after the learner agrees to begin ear training. The app otherwise advances completed tutorial segments but stops at the final invitation. This tool never bypasses the tutorial-to-practice consent boundary.
+{%- elif name == "start_practice" -%}
+Explicitly finish or skip the tutorial and prepare exercises. Call only when the learner asks for practice, asks to skip, or agrees to the final invitation. Do not call automatically after a demonstration or in response to a clarification question. Does not skip a quiz or record an answer.
+{%- elif name == "start_round" -%}
+Start the cleared next round of the selected lesson after a passed or failed round. Call only when the learner explicitly agrees to retry or review. Never call automatically, including after early failure. The first question is returned; do not call play_exercise again.
+{%- endif -%}

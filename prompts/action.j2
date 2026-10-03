@@ -1,0 +1,49 @@
+{%- if notice.kind == "existing_session" -%}
+Your {{ notice.status }} session is still here, with the same unanswered exercise. Resume it if paused.
+{%- elif notice.kind == "replayed" -%}
+{% if notice.previous %}Previous example prepared; the current question is unchanged.{% else %}Identical example prepared.{% endif %}{% if notice.arpeggiated %} Broken-chord listening is assisted.{% endif %}
+{%- elif notice.kind == "resolved_question" -%}
+This question is already resolved: {{ notice.label }}. {{ notice.explanation }}
+{%- elif notice.kind == "session_ended" -%}
+Session saved: {{ notice.answered }} answers, {{ notice.correct }} correct. Give a short, factual recap. The microphone will be released after your goodbye.
+{%- elif notice.kind == "answer_graded" -%}
+{% if effect.grade.verdict == "incomplete" -%}
+{{ effect.grade.feedback }}
+{%- elif effect.roundResult -%}
+The round has ended. Give the actual answer feedback and round result. {% if effect.roundResult.passed %}{% if hasNextLesson %}Ask whether to choose the next lesson or try this one again.{% else %}Offer another round or ending the session.{% endif %}{% else %}Ask whether the learner would like to try again.{% endif %} WAIT for their choice. Use start_round only after explicit agreement. Do not play or switch lessons automatically.
+{%- else -%}
+Use this deterministic feedback. After briefly explaining the result, call play_exercise for another question in this SAME lesson.
+{%- endif %}
+{%- elif notice.kind == "session_started" -%}
+Session started. Use play_exercise to present the current teaching segment or practice question. Follow session.phase; do not bypass an introduction unless the player asks to skip it.
+{%- elif notice.kind == "progress" -%}
+Describe the current ten-question round, its 8/10 pass threshold, and course completion. Replays and silence carry no penalty. Correct answers count toward the round; hint use is tracked separately for long-term mastery. Question types are planned in fixed proportions and their order is shuffled.
+{%- elif notice.kind == "saved_answer" -%}
+This is the saved result of the last graded answer, not a guess about the unanswered current exercise. Read this verdict. No attempt or reward was added.
+{%- elif notice.kind == "no_saved_answer" -%}
+No answer has been scored in this session yet. Ask the player for their answer to the current question; do not invent a verdict.
+{%- elif notice.kind == "round_choice" -%}
+{% if notice.passed %}Ask whether the player wants another round or the next unlocked lesson.{% else %}Ask whether the learner would like to try another round.{% endif %} Wait for their choice, then use start_round for a retry. No sound was played.
+{%- elif notice.kind == "unanswered_question" -%}
+This question is still unanswered. Replay it and wait; do not replace it.
+{%- elif notice.kind == "fresh_example" -%}
+Fresh example prepared.
+{%- elif notice.kind == "already_scored" -%}
+This exercise was already scored. No additional attempt or mastery was recorded.
+{%- elif notice.kind == "hint" -%}
+Offer this hint and wait. Do not reveal the full answer or replace the exercise.
+{%- elif notice.kind == "already_resolved" -%}
+This exercise was already resolved.
+{%- elif notice.kind == "skipped" -%}
+Skipped without a score penalty. Briefly explain the answer, then play a fresh exercise unless the player asked to stop.
+{%- elif notice.kind == "teaching" -%}
+Unscored teaching segment. The app plays its demonstration after the explanation and advances after playback.
+{%- elif notice.kind == "session_paused" -%}
+Practice is paused and the current exercise is preserved. The microphone stays available for a spoken resume; muting is a separate control.
+{%- elif notice.kind == "session_resumed" -%}
+Session resumed. Use play_exercise to resume the saved teaching segment if session.phase is teaching, otherwise replay the unanswered practice question or play a new one if already resolved.
+{%- elif notice.kind == "lesson_selected" -%}
+The player selected this unlocked lesson. Progress is preserved. Use play_exercise to present its introduction or practice question according to session.phase. Do not skip a new introduction unless asked.
+{%- elif notice.kind == "next_prepared" -%}
+Action complete. The next material is already prepared; no additional play action is needed.
+{%- endif -%}

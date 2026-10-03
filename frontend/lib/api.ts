@@ -1,0 +1,103 @@
+import type { Settings, Transcript } from '../../shared/types/user.js';
+import type { Snapshot, ToolResult, ToolName } from '../../server/types/agent.types.js';
+import { ApiError } from '../errors/api-error.js';
+import type { Curriculum } from '../../shared/types/course.js';
+import type { AnswerReview } from '../../server/types/grading.types.js';
+import {
+  credentials,
+  trackRequest,
+  unpack,
+  journal,
+  journalComplete,
+  restoreGuest,
+  scope,
+} from '../storage/access.js';
+
+export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const owner = credentials();
+  return trackRequest(request<T>(path, options, owner));
+}
+async function request<T>(
+  path: string,
+  options: RequestInit,
+  owner: ReturnType<typeof credentials>,
+  recovered = false,
+): Promise<T> {
+  const pending = await journal(path, options, owner.identity);
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-earrr-client': '1',
+        ...owner.headers,
+        ...options.headers,
+      },
+      signal: options.signal ?? AbortSignal.timeout(50_000),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    throw ApiError.unreachable();
+  }
+  if (response.status === 204) return undefined as T;
+  const body: unknown = await response.json();
+  if (!response.ok) {
+    const error = ApiError.response(body, response.status);
+    if (
+      !recovered &&
+      error.code === 'guest_session_missing' &&
+      owner.identity.startsWith('guest:') &&
+      scope() === owner.identity
+    ) {
+      await restoreGuest();
+      if (scope() !== owner.identity)
+        throw new Error('Local guest progress changed. Reload before continuing.');
+      return request<T>(path, options, credentials(), true);
+    }
+    if (pending && response.status < 500) await journalComplete(pending);
+    throw error;
+  }
+  const data = await unpack<T>(body, owner.identity);
+  if (pending) await journalComplete(pending);
+  return data;
+}
+
+export const getState = () => api<Snapshot>('/state');
+export const getCurriculum = () => api<Curriculum>('/curriculum');
+export const getAnswerReview = (id: string, signal: AbortSignal) =>
+  api<AnswerReview>(`/answers/${encodeURIComponent(id)}`, { signal });
+export const saveSettings = (settings: Settings) =>
+  api<Snapshot>('/settings', { method: 'PUT', body: JSON.stringify(settings) });
+export const saveTranscript = (message: Transcript) =>
+  api<void>('/transcript', { method: 'POST', body: JSON.stringify(message) });
+export const callTool = (
+  name: ToolName,
+  args: Record<string, unknown>,
+  sessionId?: string,
+  callId: string = crypto.randomUUID(),
+) =>
+  api<ToolResult>('/tools', {
+    method: 'POST',
+    body: JSON.stringify({ callId, name, arguments: args, ...(sessionId ? { sessionId } : {}) }),
+  });
+export const callAgentTool = (
+  name: ToolName,
+  args: Record<string, unknown>,
+  sessionId: string | undefined,
+  callId: string,
+) =>
+  api<ToolResult>('/agent/tools', {
+    method: 'POST',
+    body: JSON.stringify({ callId, name, arguments: args, ...(sessionId ? { sessionId } : {}) }),
+  });
+export const acknowledgePlayback = (sessionId: string, exerciseId: string) =>
+  api<void>('/playback', {
+    method: 'POST',
+    body: JSON.stringify({ id: crypto.randomUUID(), sessionId, exerciseId }),
+  });
+export const acknowledgeTeaching = (sessionId: string, presentationId: string) =>
+  api<Snapshot>('/teaching/delivered', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, presentationId }),
+  });

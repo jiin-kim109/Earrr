@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@theme {
+  --font-sans: 'Instrument Sans Variable', 'Segoe UI', system-ui, sans-serif;
+  --color-background: oklch(97.5% 0.004 85);
+  --color-foreground: oklch(24% 0.005 85);
+  --color-card: oklch(99.2% 0.002 85);
+  --color-card-foreground: oklch(24% 0.005 85);
+  --color-popover: oklch(99.2% 0.002 85);
+  --color-popover-foreground: oklch(24% 0.005 85);
+  --color-primary: oklch(25% 0.005 85);
+  --color-primary-foreground: oklch(98.5% 0.003 85);
+  --color-secondary: oklch(92% 0.006 85);
+  --color-secondary-foreground: oklch(30% 0.006 85);
+  --color-muted: oklch(93.5% 0.005 85);
+  --color-muted-foreground: oklch(48% 0.007 85);
+  --color-accent: oklch(90.5% 0.006 85);
+  --color-accent-foreground: oklch(24% 0.005 85);
+  --color-destructive: oklch(52% 0.2 25);
+  --color-success: oklch(48% 0.17 150);
+  --color-warning: oklch(43% 0.09 70);
+  --color-brand: oklch(51% 0.21 350);
+  --color-tutorial: oklch(80% 0.14 90);
+  --color-border: oklch(87% 0.006 85);
+  --color-input: oklch(64% 0.007 85);
+  --color-ring: oklch(39% 0.008 85);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-soft: 0 8px 32px -20px oklch(24% 0.005 85 / 0.18);
+}

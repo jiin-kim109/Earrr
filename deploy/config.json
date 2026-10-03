@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "repository": "jiin-kim109/Earrr",
+  "subscriptionId": "54cd1f78-ae06-4388-9e52-15b452f21c10",
+  "tenantId": "04e8677e-c989-47b9-8619-d83d5a5f6c67",
+  "subscriptionAssessment": {
+    "name": "Visual Studio Enterprise Subscription",
+    "quotaId": null,
+    "offerVerification": "user-approved-current-target; no independent billing-offer reclassification",
+    "productionEligible": null,
+    "eligibilitySource": "https://learn.microsoft.com/en-us/visualstudio/subscriptions/faq/subscriber/azure/"
+  },
+  "deploymentAuthorization": {
+    "status": "approved",
+    "explicitUserApproval": true,
+    "purpose": "production",
+    "subscriptionId": "54cd1f78-ae06-4388-9e52-15b452f21c10",
+    "productionUseAcknowledged": true,
+    "approvedAtUtc": "2026-10-03T03:22:12Z",
+    "pausedAtUtc": "2026-10-03T03:14:42Z",
+    "reason": "User explicitly selected production use of this same subscription, acknowledged the subscription guidance and authorized resuming deployment without any billing upgrade or spending-limit removal.",
+    "repositoryGateVariable": "AZURE_DEPLOYMENT_AUTHORIZED",
+    "repositoryGateValue": "true"
+  },
+  "resourceGroup": "rg-earrr-prod",
+  "resourceGroupId": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod",
+  "location": "westus3",
+  "requestedLocation": "westus2",
+  "fallbackReason": "Azure rejected westus2 B1 creation because the regional B1 VM quota was 0. Supported westus3 B1 creation succeeded.",
+  "appServicePlan": {
+    "name": "asp-earrr-prod",
+    "id": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod/providers/Microsoft.Web/serverfarms/asp-earrr-prod",
+    "sku": "B1",
+    "instances": 1,
+    "os": "Linux"
+  },
+  "webapp": {
+    "name": "earrr-prod-54cd1f78",
+    "id": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod/providers/Microsoft.Web/sites/earrr-prod-54cd1f78",
+    "defaultHostname": "earrr-prod-54cd1f78.azurewebsites.net",
+    "defaultUrl": "https://earrr-prod-54cd1f78.azurewebsites.net",
+    "inboundIp": "20.40.24.37",
+    "customDomainVerificationId": "F3713716E4BE315BD546834F1D151FFE924E13F54CFFCCC6E3F79F98486249CD",
+    "runtime": "NODE|22-lts",
+    "startupCommand": "node dist/server/main.js",
+    "managedIdentityPrincipalId": "046049dc-591c-4fee-a958-0b6780767250"
+  },
+  "publicOrigin": "https://earrr.app",
+  "allowedOrigins": [
+    "https://earrr.app",
+    "https://www.earrr.app",
+    "https://earrr-prod-54cd1f78.azurewebsites.net"
+  ],
+  "keyVault": {
+    "name": "kv-earrr-prod-54cd1f78",
+    "id": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod/providers/Microsoft.KeyVault/vaults/kv-earrr-prod-54cd1f78",
+    "uri": "https://kv-earrr-prod-54cd1f78.vault.azure.net/",
+    "location": "westus2",
+    "sku": "standard",
+    "rbac": true,
+    "purgeProtection": true,
+    "softDeleteRetentionDays": 90
+  },
+  "deploymentIdentity": {
+    "name": "id-earrr-github-prod",
+    "id": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourcegroups/rg-earrr-prod/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-earrr-github-prod",
+    "clientId": "f0cc424f-2008-4d41-9e08-c5f3d1e3ef4f",
+    "principalId": "8b2b9d3d-247f-4433-87c5-0810c48ea611",
+    "role": "Website Contributor",
+    "roleScope": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod/providers/Microsoft.Web/sites/earrr-prod-54cd1f78"
+  },
+  "roleAssignments": {
+    "runtimeKeyVaultSecretsUser": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod/providers/Microsoft.KeyVault/vaults/kv-earrr-prod-54cd1f78/providers/Microsoft.Authorization/roleAssignments/07766005-d82d-4274-a0f5-1b91f0ad2473",
+    "githubWebsiteContributor": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod/providers/Microsoft.Web/sites/earrr-prod-54cd1f78/providers/Microsoft.Authorization/roleAssignments/b4652f28-0beb-4ba7-85c1-ef144105569e",
+    "operatorKeyVaultSecretsOfficer": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourceGroups/rg-earrr-prod/providers/Microsoft.KeyVault/vaults/kv-earrr-prod-54cd1f78/providers/Microsoft.Authorization/roleAssignments/4d098aa1-7516-4f1a-a11e-2b7dd7ffe91b",
+    "operatorObjectId": "464b63d3-8640-480b-9ac7-9da245be4c3a"
+  },
+  "github": {
+    "environment": "production",
+    "allowedBranch": "main",
+    "federatedCredentialName": "github-production",
+    "federatedCredentialId": "/subscriptions/54cd1f78-ae06-4388-9e52-15b452f21c10/resourcegroups/rg-earrr-prod/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-earrr-github-prod/federatedIdentityCredentials/github-production",
+    "mainBranchPolicyId": 61808004,
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:jiin-kim109/Earrr:environment:production",
+    "audience": "api://AzureADTokenExchange"
+  },
+  "secrets": {
+    "AZURE_OPENAI_API_KEY": "azure-openai-api-key",
+    "SUPABASE_SERVICE_ROLE_KEY": "supabase-service-role-key",
+    "LEARNING_SAVE_KEY": "learning-save-key"
+  },
+  "pricing": {
+    "checkedDateUtc": "2026-10-03",
+    "currency": "USD",
+    "linuxB1HourlyRetail": 0.017,
+    "linuxB1At730Hours": 12.41,
+    "keyVaultStandardPer10000Operations": 0.03,
+    "source": "Azure Retail Prices API; Consumption; westus3 Linux B1 and westus2 Key Vault Standard Operations",
+    "excludes": "Taxes, bandwidth, existing Supabase, Azure OpenAI usage and domain/mail charges."
+  },
+  "firstDeployment": {
+    "status": "approved-target-awaiting-parent-commit-and-linux-ci-artifact",
+    "applicationDeployed": false,
+    "defaultRootHttpStatus": 503,
+    "releaseId": null
+  },
+  "verification": {
+    "checkedAtUtc": "2026-10-03T02:38:42Z",
+    "runtimeSecretsTransferredAndByteVerified": true,
+    "existingLearningSaveKeyPreserved": true,
+    "keyVaultReferenceIdentity": "SystemAssigned",
+    "keyVaultReferences": {
+      "AZURE_OPENAI_API_KEY": "Resolved",
+      "SUPABASE_SERVICE_ROLE_KEY": "Resolved",
+      "LEARNING_SAVE_KEY": "Resolved"
+    },
+    "githubEnvironmentSecrets": 0,
+    "githubRepositorySecrets": 0,
+    "githubOidcWorkflowExecuted": false,
+    "checks": {
+      "vitestTestsPassed": 408,
+      "deploymentGuardTestsPassed": 13,
+      "browserUiChecksPassed": 3,
+      "isolatedProductionBuildPassed": true,
+      "productionBindAndOwnOriginFixturePassed": true,
+      "packagedMetadataOverridesEnvironment": true,
+      "formattingPassed": true,
+      "typecheckPassed": true,
+      "actionlintPassed": true,
+      "knownPrivateValuesLeaked": 0,
+      "linuxCiExecuted": false
+    }
+  }
+}

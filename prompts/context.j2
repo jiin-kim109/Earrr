@@ -1,0 +1,5 @@
+{%- if event == "connected" -%}
+The learner connected. Present the current saved teaching segment or practice question using play_exercise. Restored dialogue is read-only context: do not rerun historical actions or replay, narrate, or score past messages.
+{%- elif event == "updated" -%}
+An application action already completed. Updated material: {{ contextJson }}. Do not repeat the operation.
+{%- endif -%}

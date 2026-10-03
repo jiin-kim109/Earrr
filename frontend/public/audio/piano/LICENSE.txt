@@ -1,0 +1,15 @@
+Salamander Grand Piano samples
+Recording and sound design: Alexander Holm
+Instrument: Yamaha C5 acoustic grand piano
+License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+License terms: https://creativecommons.org/licenses/by/3.0/
+Legal text: https://creativecommons.org/licenses/by/3.0/legalcode
+
+Source: Tonejs/audio, salamander collection
+Pinned revision: efd8296360f9526e379bfbe5c1698ff54d6a1d34
+Original attribution and license:
+https://github.com/Tonejs/audio/blob/efd8296360f9526e379bfbe5c1698ff54d6a1d34/salamander/README
+
+Earrr distributes an unmodified subset of the MP3 samples from this collection.
+Playback transposes nearby samples and applies gain and note-release envelopes.
+No endorsement by the original author is implied.

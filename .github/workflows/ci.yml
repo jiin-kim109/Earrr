@@ -1,0 +1,143 @@
+name: Earrr CI and gated hosting
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: earrr-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: Typecheck, unit tests and browser UI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      artifact_name: ${{ steps.artifact.outputs.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.x
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Check formatting
+        run: npm run format:check && npm run deploy:format:check
+      - name: Unit and deployment tests
+        run: npm test && npm run deploy:test
+      - name: Build production client and server
+        run: npm run build
+      - name: Install the UI browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser UI regressions without cloud credentials or native voice fixtures
+        run: npx playwright test
+      - name: Package the immutable Linux app
+        if: github.repository == 'jiin-kim109/Earrr' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: npm run deploy:package -- --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/earrr-artifact"
+      - name: Name the exact checked artifact
+        if: github.repository == 'jiin-kim109/Earrr' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        id: artifact
+        run: echo "name=earrr-production-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+      - name: Preserve the checked immutable app
+        if: github.repository == 'jiin-kim109/Earrr' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: |
+            ${{ runner.temp }}/earrr-artifact/app.zip
+            ${{ runner.temp }}/earrr-artifact/release.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Preserve failed UI evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/browser
+          if-no-files-found: ignore
+          retention-days: 7
+
+  deploy:
+    name: Deploy and verify approved hosting
+    needs: ci
+    if: vars.AZURE_DEPLOYMENT_AUTHORIZED == 'true' && github.repository == 'jiin-kim109/Earrr' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    environment:
+      name: production
+      url: ${{ vars.AZURE_WEBAPP_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_DEPLOYMENT_AUTHORIZED: ${{ vars.AZURE_DEPLOYMENT_AUTHORIZED }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+      AZURE_WEBAPP_URL: ${{ vars.AZURE_WEBAPP_URL }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.x
+      - name: Require explicit subscription or dev/test demo authorization before Azure login
+        run: node deploy/authorize.mjs
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.ci.outputs.artifact_name }}
+          path: ${{ runner.temp }}/earrr-artifact
+          digest-mismatch: error
+      - name: Azure environment-bound OIDC login
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy only the tested ZIP and verify its exact release
+        run: node deploy/deploy.mjs --artifact "$RUNNER_TEMP/earrr-artifact/app.zip" --metadata "$RUNNER_TEMP/earrr-artifact/release.json"
+
+  release:
+    name: Publish the successful date/hash release
+    needs: [ci, deploy]
+    if: vars.AZURE_DEPLOYMENT_AUTHORIZED == 'true' && github.repository == 'jiin-kim109/Earrr' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      AZURE_DEPLOYMENT_AUTHORIZED: ${{ vars.AZURE_DEPLOYMENT_AUTHORIZED }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.x
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.ci.outputs.artifact_name }}
+          path: ${{ runner.temp }}/earrr-artifact
+          digest-mismatch: error
+      - name: Recheck the live release, then create its UTC-date and commit-hash tag
+        run: node deploy/release.mjs --artifact "$RUNNER_TEMP/earrr-artifact/app.zip" --metadata "$RUNNER_TEMP/earrr-artifact/release.json"

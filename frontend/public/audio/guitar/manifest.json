@@ -1,0 +1,92 @@
+{
+  "revision": "622c2f1c32c8cfce4158ddc3eb26e518ddef37e5",
+  "source": "https://raw.githubusercontent.com/nbrosowsky/tonejs-instruments/622c2f1c32c8cfce4158ddc3eb26e518ddef37e5/samples/guitar-acoustic",
+  "license": "CC-BY-3.0",
+  "author": "University of Iowa; distributed by Nicholaus P. Brosowsky",
+  "samples": [
+    {
+      "midi": 38,
+      "file": "D2.mp3",
+      "bytes": 279228,
+      "sha256": "d005117a278f3b3ac5f6b7048f7d6d94315b85afa281140cc1a4264dd2f62483"
+    },
+    {
+      "midi": 40,
+      "file": "E2.mp3",
+      "bytes": 260448,
+      "sha256": "917820984d1bb0b7712b4f2c42a9694efbb2479ccede45aa78af73811fc6818d"
+    },
+    {
+      "midi": 41,
+      "file": "F2.mp3",
+      "bytes": 371876,
+      "sha256": "eb7d6ccb9163aca6b70a0788de96ea20dd0bdca15db9015c5453c261e3982223"
+    },
+    {
+      "midi": 44,
+      "file": "Gs2.mp3",
+      "bytes": 243546,
+      "sha256": "ec5fb51c6829a900c5f4073fd97ad617dd53a821e505143cea8c6f45253b3a37"
+    },
+    {
+      "midi": 47,
+      "file": "B2.mp3",
+      "bytes": 343706,
+      "sha256": "b3bfb6e236d6b4680971eccad3be0042f1b3f7fb86fd1593b3817d92c461391a"
+    },
+    {
+      "midi": 50,
+      "file": "D3.mp3",
+      "bytes": 308024,
+      "sha256": "861b74a32a9159eea675ebd6ba0e5d3fa331b2c744dddd9ca1151073a3974fc0"
+    },
+    {
+      "midi": 53,
+      "file": "F3.mp3",
+      "bytes": 219758,
+      "sha256": "98b1a5e1e442752aba163e5fc4410fc8fdddafac4c920a0dd22991387b46e66e"
+    },
+    {
+      "midi": 56,
+      "file": "Gs3.mp3",
+      "bytes": 120850,
+      "sha256": "b010d4622fefd06fc21063deece0b8f7141605a23331b10fa4385c3179a8d0ea"
+    },
+    {
+      "midi": 59,
+      "file": "B3.mp3",
+      "bytes": 120850,
+      "sha256": "2ab73ca750ca539a76c7ddaf7a3be2aac1436cd59ffc65525bf4adbb47c56488"
+    },
+    {
+      "midi": 62,
+      "file": "D4.mp3",
+      "bytes": 80786,
+      "sha256": "3572050294e58aae62d7fcaaf2d9a66a4f880bf2fb74e89160a1f6d069d516f2"
+    },
+    {
+      "midi": 65,
+      "file": "F4.mp3",
+      "bytes": 113964,
+      "sha256": "f1d2f58575ac5cc666942c6f084d0328c2ceb28f485d315f41f66d9eafd33a05"
+    },
+    {
+      "midi": 68,
+      "file": "Gs4.mp3",
+      "bytes": 104574,
+      "sha256": "811da762dcd6caa70f1b8e60a92a406bd9665ffa5e7c42e52861526c1b6f9078"
+    },
+    {
+      "midi": 71,
+      "file": "B4.mp3",
+      "bytes": 95810,
+      "sha256": "7b523e73ba05e35f630ea756f33ae9c7497f64510c4b06544d43bcd37acadf0d"
+    },
+    {
+      "midi": 74,
+      "file": "D5.mp3",
+      "bytes": 78282,
+      "sha256": "c9d74d19e672780b7b6e9eb4468b31b5fee6642f20df724198b232f7c78af4f1"
+    }
+  ]
+}

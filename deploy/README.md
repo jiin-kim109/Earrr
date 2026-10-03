@@ -2,21 +2,21 @@
 
 ## Current deployment
 
-| Item                  | Location / setting                                                             |
-| --------------------- | ------------------------------------------------------------------------------ |
-| Public application    | **https://earrr.app**                                                          |
-| Also bound with HTTPS | https://www.earrr.app                                                          |
-| Azure validation host | https://earrr-prod-54cd1f78.azurewebsites.net                                  |
-| GitHub                | https://github.com/jiin-kim109/Earrr                                           |
-| Subscription          | `54cd1f78-ae06-4388-9e52-15b452f21c10`, explicitly approved by the owner       |
-| Resource group        | `rg-earrr-prod`                                                                |
-| Web app               | `earrr-prod-54cd1f78`                                                          |
-| Hosting plan          | `asp-earrr-prod`, Linux **B1**, one worker, **West US 3**                      |
-| Runtime               | Node 22 LTS; `node dist/server/main.js`, port 8080                             |
-| Secrets               | Azure Key Vault `kv-earrr-prod-54cd1f78`, Standard/RBAC, West US 2             |
-| Supabase project      | `smxezziivohyldytykzv`, existing Auth/PostgreSQL learning storage              |
-| Deployment workflow   | `.github/workflows/ci.yml`                                                     |
-| Last verified runtime | `20261003T043613Z-f7fc5be5`, source `f7fc5be53fd40cbb090b0baa026fd43de74a0a46` |
+| Item                             | Location / setting                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------ |
+| Public application               | **https://earrr.app**                                                          |
+| Also bound with HTTPS            | https://www.earrr.app                                                          |
+| Azure validation host            | https://earrr-prod-54cd1f78.azurewebsites.net                                  |
+| GitHub                           | https://github.com/jiin-kim109/Earrr                                           |
+| Subscription                     | `54cd1f78-ae06-4388-9e52-15b452f21c10`, explicitly approved by the owner       |
+| Resource group                   | `rg-earrr-prod`                                                                |
+| Web app                          | `earrr-prod-54cd1f78`                                                          |
+| Hosting plan                     | `asp-earrr-prod`, Linux **B1**, one worker, **West US 3**                      |
+| Runtime                          | Node 22 LTS; `node dist/server/main.js`, port 8080                             |
+| Secrets                          | Azure Key Vault `kv-earrr-prod-54cd1f78`, Standard/RBAC, West US 2             |
+| Supabase project                 | `smxezziivohyldytykzv`, existing Auth/PostgreSQL learning storage              |
+| Deployment workflow              | `.github/workflows/ci.yml`                                                     |
+| Verified first automatic release | `20261003T055448Z-e9b8f643`, source `e9b8f643b0232c79cb32aef39008087f6f03d1ef` |
 
 On October 3, 2026 UTC, the custom HTTPS hosts and Azure host returned healthy
 responses with the exact embedded release/commit. The live browser, secure
@@ -24,13 +24,18 @@ microphone context, owner-scoped guest hydration, native WebRTC coaching,
 hidden-tab replay/grading and microphone release were verified using an isolated
 test guest. No existing user's learning was scored or changed.
 
-**Pipeline status:** Linux CI, browser checks, immutable packaging and the real
-GitHub/Azure OIDC exchange have succeeded. The first ZIP is live; Azure CLI's synchronous runtime tracker reported a
-false-negative despite Kudu success, successful platform startup probes and the
-verified healthy app. Delivery now requires a successful synchronous Kudu receipt
-with `--track-status false`, followed by the exact release/commit and infrastructure
-health gates. Submission errors remain fatal. GitHub release publication is
-pending the corrected workflow; app health alone is not a release-workflow claim.
+**Pipeline status: verified end to end.** GitHub run
+[`37101037162`](https://github.com/jiin-kim109/Earrr/actions/runs/37101037162)
+passed Linux CI/browser checks, immutable packaging, the real Azure OIDC exchange,
+Kudu deployment receipt, exact release/commit and infrastructure verification, and
+automatic Git tag/release publication. The first successful release is
+[`20261003T055448Z-e9b8f643`](https://github.com/jiin-kim109/Earrr/releases/tag/20261003T055448Z-e9b8f643).
+
+Azure CLI's separate runtime tracker previously reported a false-negative despite
+Kudu success and successful platform startup probes. Delivery uses
+`--track-status false` while still requiring a successful synchronous Kudu receipt
+and exact new-version health. Submission errors, malformed receipts, stale
+versions and failed verification remain fatal; no catch-and-success fallback is used.
 
 The subscription name remains Visual Studio Enterprise Subscription. The owner
 acknowledged the offer guidance and expressly selected this existing subscription;

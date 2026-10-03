@@ -67,12 +67,14 @@ const enter = (page: Page) =>
 const player = (page: Page) => page.getByLabel('Exercise player', { exact: true });
 const fixedTitle = 'Earrr | Ear training game with a friendly AI tutor.';
 async function noPageScroll(page: Page) {
-  expect(
-    await page.evaluate(() => ({
-      horizontal: document.documentElement.scrollWidth > innerWidth,
-      vertical: document.documentElement.scrollHeight > innerHeight,
-    })),
-  ).toEqual({ horizontal: false, vertical: false });
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        horizontal: document.documentElement.scrollWidth > innerWidth,
+        vertical: document.documentElement.scrollHeight > innerHeight,
+      })),
+    )
+    .toEqual({ horizontal: false, vertical: false });
 }
 async function chooseInstrument(page: Page, name: 'Piano' | 'Guitar') {
   if (!(await page.getByRole('button', { name: /^Change instrument:/ }).isVisible()))

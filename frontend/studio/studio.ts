@@ -42,6 +42,7 @@ class Studio {
   private identityOperation: Promise<void> | null = null;
   private preview: MediaStream | null = null;
   private previewRequest = 0;
+  private microphonePermissionRequest: Promise<void> | null = null;
   private starting: Promise<ToolResult> | null = null;
   private reconnecting = false;
   private entryController: AbortController | null = null;
@@ -433,10 +434,27 @@ class Studio {
   async chooseSpeaker(speakerDevice: string) {
     const surface = this.audioSurface();
     try {
-      await this.audio.setOutputDevice(speakerDevice);
-      this.patch({ speakerDevice });
+      let selected = speakerDevice;
+      try {
+        await this.audio.setOutputDevice(selected);
+      } catch (error) {
+        const devices = navigator.mediaDevices;
+        if (
+          !(error instanceof DOMException && error.name === 'NotAllowedError') ||
+          !selected ||
+          !devices ||
+          !('selectAudioOutput' in devices) ||
+          typeof devices.selectAudioOutput !== 'function'
+        )
+          throw error;
+        const output: MediaDeviceInfo = await devices.selectAudioOutput({ deviceId: selected });
+        selected = output.deviceId;
+        await this.audio.setOutputDevice(selected);
+      }
+      this.patch({ speakerDevice: selected });
       this.dismissAudioNotice(surface);
-      this.remember('speaker', speakerDevice);
+      this.remember('speaker', selected);
+      void this.refreshDevices();
     } catch (error) {
       this.reportAudioError(error, surface);
     }
@@ -478,6 +496,19 @@ class Studio {
       this.patch({ microphoneError: message });
   }
   private async requestEntryMicrophonePermission() {
+    await this.requestMicrophonePermission(false);
+  }
+  requestMicrophonePermission(retryBlocked = true): Promise<void> {
+    if (this.microphonePermissionRequest) return this.microphonePermissionRequest;
+    const operation = this.acquireMicrophonePermission(retryBlocked);
+    this.microphonePermissionRequest = operation;
+    const finished = () => {
+      if (this.microphonePermissionRequest === operation) this.microphonePermissionRequest = null;
+    };
+    void operation.then(finished, finished);
+    return operation;
+  }
+  private async acquireMicrophonePermission(retryBlocked: boolean) {
     if (!navigator.mediaDevices?.getUserMedia) return;
     if (navigator.permissions?.query) {
       try {
@@ -485,10 +516,7 @@ class Studio {
           name: 'microphone' as PermissionName,
         });
         if (permission.state === 'granted') return;
-        if (permission.state === 'denied') {
-          this.microphoneError(
-            new DOMException('Microphone permission is blocked.', 'NotAllowedError'),
-          );
+        if (permission.state === 'denied' && !retryBlocked) {
           return;
         }
       } catch (error) {
@@ -518,13 +546,15 @@ class Studio {
   }
   private selectedInput(): string | null {
     if (!navigator.mediaDevices?.getUserMedia) return null;
-    const inputs = this.state.devices.filter((device) => device.kind === 'audioinput');
-    if (!inputs.length) return null;
-    return this.state.microphoneDevice === 'none'
-      ? (inputs.find(
-          (device) => device.deviceId && !['default', 'communications'].includes(device.deviceId),
-        )?.deviceId ?? '')
-      : this.state.microphoneDevice;
+    const selected = this.state.microphoneDevice;
+    return this.state.devices.some(
+      (device) =>
+        device.kind === 'audioinput' &&
+        device.deviceId === selected &&
+        !['', 'none', 'default', 'communications'].includes(selected),
+    )
+      ? selected
+      : null;
   }
   async previewMicrophone() {
     if (this.transport.connected) {

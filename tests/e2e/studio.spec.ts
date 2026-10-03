@@ -346,6 +346,136 @@ test('requests missing microphone permission on entry before backend hydration o
   }
 });
 
+test('retries missing microphone permission only from microphone settings and lists explicit inputs', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const evidence = { requests: 0, permission: 'prompt' };
+    Reflect.set(window, 'micRetryEvidence', evidence);
+    Reflect.set(navigator.permissions, 'query', async () => ({ state: evidence.permission }));
+    navigator.mediaDevices.enumerateDevices = async () => [
+      {
+        deviceId: 'default',
+        kind: 'audioinput',
+        label: 'System microphone',
+        groupId: 'g',
+        toJSON() {
+          return {};
+        },
+      },
+      {
+        deviceId: 'communications',
+        kind: 'audioinput',
+        label: 'Communications',
+        groupId: 'g',
+        toJSON() {
+          return {};
+        },
+      },
+      {
+        deviceId: '',
+        kind: 'audioinput',
+        label: '',
+        groupId: 'g',
+        toJSON() {
+          return {};
+        },
+      },
+      {
+        deviceId: 'usb-mic',
+        kind: 'audioinput',
+        label: 'USB microphone',
+        groupId: 'g',
+        toJSON() {
+          return {};
+        },
+      },
+    ];
+    navigator.mediaDevices.getUserMedia = async () => {
+      evidence.requests++;
+      if (evidence.requests === 1) {
+        evidence.permission = 'denied';
+        throw new DOMException('Denied', 'NotAllowedError');
+      }
+      evidence.permission = 'granted';
+      return new MediaStream();
+    };
+  });
+  await page.goto('/');
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'micRetryEvidence').requests))
+    .toBe(1);
+  const inputs = page.getByRole('radiogroup', { name: 'Microphone', exact: true });
+  await expect(inputs.getByRole('radio')).toHaveCount(2);
+  await expect(inputs.getByRole('radio', { name: 'None', exact: true })).toBeChecked();
+  await expect(inputs.getByRole('radio', { name: 'USB microphone', exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'System microphone', exact: true })).toHaveCount(0);
+  await enter(page);
+  await expect(player(page)).toBeVisible();
+  expect(await page.evaluate(() => Reflect.get(window, 'micRetryEvidence').requests)).toBe(1);
+  await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
+  expect(await page.evaluate(() => Reflect.get(window, 'micRetryEvidence').requests)).toBe(1);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Microphone settings', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'micRetryEvidence').requests))
+    .toBe(2);
+  const popup = page.getByRole('dialog', { name: 'Microphone settings', exact: true });
+  await expect(popup.getByRole('radio')).toHaveCount(2);
+  await expect(popup.getByRole('radio', { name: 'USB microphone', exact: true })).toBeVisible();
+  await expect(popup.getByRole('radio', { name: 'System microphone', exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('microphone-meter')).toHaveAttribute('data-active', 'false');
+});
+
+test('uses native output permission only when a selected speaker actually requires it', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const evidence = { authorized: false, requests: 0 };
+    Reflect.set(window, 'speakerPermissionEvidence', evidence);
+    navigator.mediaDevices.enumerateDevices = async () => [
+      {
+        deviceId: 'headphones',
+        kind: 'audiooutput',
+        label: 'Headphones',
+        groupId: 'g',
+        toJSON() {
+          return {};
+        },
+      },
+    ];
+    const output = async (id: string) => {
+      if (id === 'headphones' && !evidence.authorized)
+        throw new DOMException('Output permission required.', 'NotAllowedError');
+    };
+    Object.defineProperty(AudioContext.prototype, 'setSinkId', {
+      configurable: true,
+      value: output,
+    });
+    HTMLMediaElement.prototype.setSinkId = output;
+    Reflect.set(navigator.mediaDevices, 'selectAudioOutput', async () => {
+      evidence.requests++;
+      evidence.authorized = true;
+      return {
+        deviceId: 'headphones',
+        kind: 'audiooutput',
+        label: 'Headphones',
+        groupId: 'g',
+        toJSON() {
+          return {};
+        },
+      };
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('radio', { name: 'Headphones', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Headphones', exact: true })).toBeChecked();
+  expect(await page.evaluate(() => Reflect.get(window, 'speakerPermissionEvidence').requests)).toBe(
+    1,
+  );
+  await expect(page.getByTestId('audio-notice-setup')).toHaveCount(0);
+});
+
 test('plays piano keys and guitar string/fret notes without scoring practice', async ({
   page,
   request,

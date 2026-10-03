@@ -284,8 +284,13 @@ without excessive praise. The player is treated as a musician at every level.
     still needs consent, before backend hydration or a device-selection click.
     Stop the short authorization stream and preserve mic-off/saved preferences.
     Already granted permission needs no capture; denied or pending permission
-    never blocks setup or text training. Browser-blocked permission is explained
-    in the microphone settings rather than repeatedly requesting it.
+    does not add an entry flow or trigger automatic retries after entry. Opening
+    in-game microphone settings explicitly rechecks/retries missing access;
+    browser-blocked permission is explained there if Chrome cannot show a new prompt.
+    Both surfaces offer None or enumerated explicit inputs, never a System
+    microphone/default/communications alias. Speaker selection does not request
+    microphone access; use a browser-native speaker chooser only if the browser
+    supports it and actually denies a requested output device.
 
 ## Accessibility & Inclusion
 

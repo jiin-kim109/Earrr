@@ -22,24 +22,18 @@ export function MicrophoneSettings({
       device.deviceId !== 'default' &&
       device.deviceId !== 'communications',
   );
-  const available = state.devices.some((device) => device.kind === 'audioinput');
-  const options = inputs.length
-    ? inputs.map((device, index) => ({
-        id: device.deviceId,
-        label: device.label || `Microphone ${index + 1}`,
-      }))
-    : available
-      ? [{ id: '', label: 'System microphone' }]
-      : [];
+  const available = inputs.length > 0;
+  const options = inputs.map((device, index) => ({
+    id: device.deviceId,
+    label: device.label || `Microphone ${index + 1}`,
+  }));
   const canCapture = state.setupOpen || state.connection === 'connected';
   const selected =
     active || state.micBusy
-      ? ['default', 'communications'].includes(state.microphoneDevice)
-        ? ''
-        : state.microphoneDevice
+      ? inputs.some((device) => device.deviceId === state.microphoneDevice)
+        ? state.microphoneDevice
+        : 'none'
       : 'none';
-  if (selected === '' && inputs.length && available)
-    options.unshift({ id: '', label: 'System microphone' });
   const toggle = () => {
     if (active || state.micBusy) void studio.chooseMicrophone('none');
     else if (state.setupOpen) void studio.previewMicrophone();
@@ -98,7 +92,12 @@ export function MicrophoneSettings({
                 ? 'Cancel microphone request'
                 : 'Turn microphone on'
           }
-          disabled={!canCapture || (!available && !active && !state.micBusy)}
+          disabled={
+            !canCapture ||
+            ((!available || !inputs.some((input) => input.deviceId === state.microphoneDevice)) &&
+              !active &&
+              !state.micBusy)
+          }
           onClick={toggle}
         >
           <MicrophoneIndicator active={active} className="size-5 [&_svg]:size-5" />
@@ -122,7 +121,11 @@ export function MicrophoneSettings({
 export function MicrophoneControl() {
   const hasMicrophone = useStudio((state) => state.hasMicrophone);
   return (
-    <Popover>
+    <Popover
+      onOpenChange={(open) => {
+        if (open) void studio.requestMicrophonePermission();
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="ghost"

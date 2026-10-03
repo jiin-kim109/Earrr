@@ -194,6 +194,7 @@ class Studio {
           'setup',
         );
       }
+      void this.requestEntryMicrophonePermission();
       void this.refreshDevices();
     }
     this.patch({ loading: true, error: null });
@@ -475,6 +476,45 @@ class Studio {
             : 'Microphone unavailable.';
     if (!(error instanceof DOMException && error.name === 'AbortError'))
       this.patch({ microphoneError: message });
+  }
+  private async requestEntryMicrophonePermission() {
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    if (navigator.permissions?.query) {
+      try {
+        const permission = await navigator.permissions.query({
+          name: 'microphone' as PermissionName,
+        });
+        if (permission.state === 'granted') return;
+        if (permission.state === 'denied') {
+          this.microphoneError(
+            new DOMException('Microphone permission is blocked.', 'NotAllowedError'),
+          );
+          return;
+        }
+      } catch (error) {
+        if (
+          !(
+            error instanceof TypeError ||
+            (error instanceof DOMException && error.name === 'NotSupportedError')
+          )
+        ) {
+          this.microphoneError(error);
+          return;
+        }
+      }
+    }
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'NotFoundError'))
+        this.microphoneError(error);
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
+      void this.refreshDevices();
+    }
   }
   private selectedInput(): string | null {
     if (!navigator.mediaDevices?.getUserMedia) return null;

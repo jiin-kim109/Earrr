@@ -280,6 +280,12 @@ without excessive praise. The player is treated as a musician at every level.
     requested lesson stays blocked until its prerequisite exercise checkpoint
     passes; clearly name that prerequisite and 8/10 target. Never substitute the
     current lesson or claim the requested target is already active.
+46. On secure app entry, request microphone permission immediately if the browser
+    still needs consent, before backend hydration or a device-selection click.
+    Stop the short authorization stream and preserve mic-off/saved preferences.
+    Already granted permission needs no capture; denied or pending permission
+    never blocks setup or text training. Browser-blocked permission is explained
+    in the microphone settings rather than repeatedly requesting it.
 
 ## Accessibility & Inclusion
 

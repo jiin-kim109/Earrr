@@ -174,9 +174,10 @@ async function freshPitchRound(request: APIRequestContext) {
   return (await call('play_exercise')).snapshot;
 }
 
-test('shows only essential setup, without connecting or requesting microphone permission', async ({
+test('shows only essential setup without capturing a microphone whose permission is already granted', async ({
   page,
 }) => {
+  await page.context().grantPermissions(['microphone']);
   await page.addInitScript({ content: audioEvidenceScript });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Get ready.', exact: true })).toHaveCount(0);
@@ -297,6 +298,53 @@ for (const viewport of [
     await expect(player(page)).toBeVisible();
   });
 }
+
+test('requests missing microphone permission on entry before backend hydration or any device click', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Reflect.set(window, 'entryPermission', { requests: 0, stops: 0 });
+    Reflect.set(navigator.permissions, 'query', async () => ({ state: 'prompt' }));
+    navigator.mediaDevices.getUserMedia = async () => {
+      const evidence = Reflect.get(window, 'entryPermission');
+      evidence.requests++;
+      const stream = new MediaStream();
+      Reflect.set(stream, 'getTracks', () => [
+        {
+          stop: () => {
+            evidence.stops++;
+          },
+        },
+      ]);
+      return stream;
+    };
+  });
+  let ready!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  await page.route('**/api/config', async (route) => {
+    await pending;
+    await route.fallback();
+  });
+  try {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect
+      .poll(() => page.evaluate(() => Reflect.get(window, 'entryPermission').requests))
+      .toBe(1);
+    await expect
+      .poll(() => page.evaluate(() => Reflect.get(window, 'entryPermission').stops))
+      .toBe(1);
+    await expect(page.getByRole('button', { name: 'Start training', exact: true })).toBeEnabled();
+    await expect(page.getByTestId('microphone-meter')).toHaveAttribute('data-active', 'false');
+    ready();
+    await enter(page);
+    await expect(player(page)).toBeVisible();
+    expect(await page.evaluate(() => Reflect.get(window, 'entryPermission').requests)).toBe(1);
+  } finally {
+    ready();
+  }
+});
 
 test('plays piano keys and guitar string/fret notes without scoring practice', async ({
   page,

@@ -1095,12 +1095,12 @@ for (const stage of ['intervals-foundation', 'intervals-harmonic'] as const) {
   });
 }
 
-test('persists instrument mute independently from tutor voice across reload', async ({
+test('uses a single output volume for the instrument and persists mute across reload', async ({
   page,
   request,
 }) => {
   await page.goto('/');
-  const slider = page.getByRole('slider', { name: 'Instrument sound', exact: true });
+  const slider = page.getByRole('slider', { name: 'Speaker volume', exact: true });
   await expect(slider).toBeEnabled();
   await slider.focus();
   await page.keyboard.press('Home');

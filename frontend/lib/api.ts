@@ -23,8 +23,6 @@ async function request<T>(
 ): Promise<T> {
   const pending = await journal(path, options, owner.identity);
   const requestId = crypto.randomUUID();
-  const started = performance.now();
-  const logPath = `/api${path.split('?')[0]}`;
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {
@@ -40,22 +38,8 @@ async function request<T>(
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
-    Log.event(
-      'api.failed',
-      {
-        path: logPath,
-        durationMs: Math.round(performance.now() - started),
-        code: 'network_unavailable',
-      },
-      { level: 'error', requestId },
-    );
     throw ApiError.unreachable();
   }
-  Log.event(
-    'api.completed',
-    { path: logPath, status: response.status, durationMs: Math.round(performance.now() - started) },
-    { level: response.ok ? 'info' : 'warn', requestId },
-  );
   if (response.status === 204) return undefined as T;
   const body: unknown = await response.json();
   if (!response.ok) {

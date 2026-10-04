@@ -349,16 +349,26 @@ without excessive praise. The player is treated as a musician at every level.
 56. Use a single Supabase raw-event table for traffic, usage and reliability
     analytics instead of Google Analytics. Keep essential dimensions in columns
     and event-specific data in a JSON message. Client/server code shares the
-    Log.event(name, message, options) interface; visit, visitor, session, request,
-    verified actor, environment and release context are attached automatically.
-    Record lifecycle, screen, training, navigation, playback, grading, round,
-    authentication and failure events without raw chat, microphone audio, credentials
-    or direct identifiers. Only server-side service credentials can access the table.
+    Log.event(name, message, options) interface; attach only session, request,
+    verified actor and environment context. Use descriptive snake_case event names,
+    such as user_start_training. Keep one app-open event per restored page visit,
+    actual training starts, lesson/exercise-round choices, committed answer/round
+    outcomes, successful signup/login and major failures. These support active-user,
+    retention and learning-funnel statistics without request, playback, device,
+    speech or visibility traces. Do not store source, visit, visitor or release
+    dimensions, raw chat, microphone audio, credentials or direct identifiers.
+    Only server-side service credentials can access the table.
 57. Logs have 30-day retention based on server receipt time, with an hourly purge.
     This does not delete learning or conversation history. Keep logging small,
     bounded and best-effort; delivery failure is explicit in diagnostic output but
     must not block the app or recursively log itself. Do not add materialized
     analytics tables, aggregation pipelines or a persistent client log cache.
+58. Serve a real robots.txt and a canonical-homepage sitemap. Keep the public title
+    unchanged, include consistent canonical/social metadata and WebSite structured
+    data, and return genuine 404s for nonexistent URLs. Preserve the OAuth callback
+    and mark authentication/API responses noindex without blocking resources needed
+    to render the app. Cache fingerprinted build assets immutably. Do not invent
+    reviews, ratings or private lesson URLs for search engines.
 
 ## Ear-training design references
 

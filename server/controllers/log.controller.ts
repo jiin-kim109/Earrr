@@ -10,6 +10,10 @@ export function logRoutes(storage: Store | WorkspaceDirectory) {
   const router = Router();
   router.post('/logs', async (req, res) => {
     const { events } = logBatchSchema.parse(req.body);
+    if (!events.length) {
+      res.sendStatus(202);
+      return;
+    }
     if (!Log.enabled) {
       res.setHeader('x-earrr-telemetry', 'disabled');
       res.sendStatus(204);
@@ -33,8 +37,7 @@ export function logRoutes(storage: Store | WorkspaceDirectory) {
     ];
     for (const id of sessions)
       if (!store || !(await store.sessions.get(id))) throw AppError.create('session_not_found');
-    for (const event of events)
-      Log.ingest(event, actorId ?? (event.visitorId ? `visitor:${event.visitorId}` : null));
+    for (const event of events) Log.ingest(event, actorId);
     res.sendStatus(202);
   });
   return router;

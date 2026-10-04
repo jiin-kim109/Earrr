@@ -16,7 +16,6 @@ import { AppHeader } from './AppHeader.js';
 import { CourseOutline } from './CourseOutline.js';
 import { useDesktopLayout } from './useDesktopLayout.js';
 import { FailureToast } from './FailureToast.js';
-import { Log } from '@/lib/log';
 
 export default function App() {
   const state = useStudio(
@@ -53,9 +52,6 @@ export default function App() {
   useEffect(() => {
     void studio.initialize();
   }, []);
-  useEffect(() => {
-    Log.event('screen.viewed', { screen: authView ?? (setup ? 'setup' : 'training') });
-  }, [authView, setup]);
   useEffect(() => {
     if (location.pathname === '/auth/callback' && accountId) history.replaceState(null, '', '/');
   }, [accountId]);

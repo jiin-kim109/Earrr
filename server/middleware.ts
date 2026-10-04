@@ -22,6 +22,7 @@ export function ownOriginApiOnly(
     config.listenHost === '127.0.0.1' || (hosts.size === 0 && config.listenHost !== '0.0.0.0');
   return (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex');
     const host = (req.get('host') ?? '').toLowerCase();
     const local = allowLocal && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
     if (!local && !hosts.has(host))

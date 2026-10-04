@@ -217,6 +217,11 @@ received more than 30 days ago. It was applied to the Earrr Supabase project on
 October 4, 2026 UTC and recorded in migration history. RLS is enabled; anonymous
 reads and authenticated-client writes are denied, while service-role writes are
 allowed. No additional analytics tables or pipelines are created.
+Apply `20261004171000_earrr_lean_events_compat.sql` before deploying the reduced
+writer, then `20261004171100_earrr_lean_events.sql` after verifying that release.
+The second migration drops source/visit/visitor/release columns, normalizes
+historical event names to snake_case and removes retired visitor-only identities.
+Existing event rows and the 30-day retention job remain intact.
 The earlier account schema already existed before CLI migration history was
 tracked; its tables, profile trigger, save RPC and RLS were checked before
 reconciling the existing migration record.
@@ -224,17 +229,21 @@ reconciling the existing migration record.
 Both frontend and backend use the same compact interface:
 
 ```ts
-Log.event('training.start_clicked', { lessonId: 'triads' });
-Log.event('audio.device_unavailable', { kind: 'speaker' }, { level: 'warn' });
-Log.error('request.failed', error, { operation: 'grading' });
+Log.event('user_start_training', { mode: 'coach', input: 'voice' });
+Log.event('user_complete_exercise_round', { lessonId: 'triads', passed: true });
+Log.error('server_request_failed', error, { operation: 'grading' });
 ```
 
 Import `Log` from `frontend/lib/log.ts` in browser code or
 `server/services/log.service.ts` on the server. Context is automatic: timestamps,
-event/level/source, learning `session_id`, page-launch `visit_id`, anonymous
-browser `visitor_id`, verified `actor_id`, HTTP `request_id`, environment and
-release. `message` remains JSON for event-specific dimensions. Event names use
-lowercase dot-separated words.
+event/level, learning `session_id`, verified account/guest `actor_id`, HTTP
+`request_id` and environment. `message` remains JSON for event-specific dimensions.
+Event names use descriptive lowercase snake_case, up to 128 characters.
+There is no visitor cookie/ID or per-request, playback, device, speech or
+visibility tracing. Retention cohorts use the existing verified account/guest
+identity rather than a separate browser identifier. App opens, actual training
+starts, lesson/exercise-round choices, committed grades/rounds, signup/login and
+major failures are the retained signals.
 
 Browser events go through `/api/logs`; clients cannot choose server identities or
 read the table. Session ownership is verified and service-role inserts ignore
@@ -245,9 +254,20 @@ secrets are redacted as an additional safeguard, not permission to log user cont
 Messages are limited to 8 KB/eight nesting levels. Browser batches contain at
 most five events, server batches twenty; queues are memory-only and bounded.
 Logging never delays grading or retries forever. Failed delivery is diagnostic
-output, so events during complete network loss are not guaranteed. Distinguish
-client/server events and use `callId`, question/attempt IDs when deduplicating
-retried business operations. Developer traffic is marked separately from production.
+output, so events during complete network loss are not guaranteed. Answer/tool
+events use call IDs and round results use round IDs, so retries do not create
+extra rows. Attempt IDs remain available for joining learning records. Developer
+traffic is marked separately from production.
+
+### Search discoverability
+
+The public homepage retains its title and canonical/social metadata. It serves
+WebSite JSON-LD, a real text robots.txt and an XML sitemap containing only the
+canonical homepage. API/authentication responses are noindex; required JavaScript
+and API resources are not blocked from rendering. The OAuth callback remains
+available, and unknown public paths return 404 rather than duplicate app HTML.
+Fingerprint-named build assets use one-year immutable caching. Search indexing
+and rich-result appearance are not guaranteed by these changes.
 
 Build into an isolated output instead of replacing a running local server's `dist`:
 

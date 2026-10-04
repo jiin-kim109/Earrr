@@ -1624,14 +1624,12 @@ test('a fatal server error on answer review also uses the global refresh surface
   ).toBeVisible();
 });
 
-test('captures traffic and training actions as structured raw events without message contents', async ({
+test('keeps only app-open and actual training-start browser events without visitor tracking or input traces', async ({
   page,
 }) => {
   const events: Array<{
     event: string;
     message: Record<string, unknown>;
-    visitId: string;
-    visitorId: string;
   }> = [];
   await page.route('**/api/logs', async (route) => {
     events.push(...route.request().postDataJSON().events);
@@ -1644,22 +1642,14 @@ test('captures traffic and training actions as structured raw events without mes
   await expect(player(page).locator('[data-outcome="incorrect"]')).toHaveCount(1);
   await expect
     .poll(() => events.map((event) => event.event))
-    .toEqual(
-      expect.arrayContaining([
-        'app.opened',
-        'screen.viewed',
-        'training.start_clicked',
-        'input.submitted',
-        'audio.started',
-        'api.completed',
-      ]),
-    );
-  expect(new Set(events.map((event) => event.visitId)).size).toBe(1);
-  expect(new Set(events.map((event) => event.visitorId)).size).toBe(1);
-  const input = events.find((event) => event.event === 'input.submitted')!;
-  expect(input.message).toMatchObject({ input: 'text', characters: 4 });
-  expect(input.message).not.toHaveProperty('text');
-  expect(input.message).not.toHaveProperty('transcript');
+    .toEqual(expect.arrayContaining(['user_open_app', 'user_start_training']));
+  expect(events.map((event) => event.event)).toEqual(['user_open_app', 'user_start_training']);
+  for (const event of events) {
+    expect(event).not.toHaveProperty('visitId');
+    expect(event).not.toHaveProperty('visitorId');
+    expect(event.message).not.toHaveProperty('text');
+    expect(event.message).not.toHaveProperty('transcript');
+  }
 });
 
 test('a rendering failure also produces the refresh toast instead of a blank page', async ({

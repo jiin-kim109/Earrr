@@ -47,6 +47,7 @@ class Studio {
   private generation = 0;
   private soloTurn = 0;
   private initialized = false;
+  private visitRecorded = false;
   private initialization: Promise<boolean> | null = null;
   private identityOperation: Promise<void> | null = null;
   private preview: MediaStream | null = null;
@@ -121,7 +122,6 @@ class Studio {
       this.fail(error);
       return;
     }
-    Log.error('app.action_failed', error);
     this.patch({
       error: error instanceof Error ? error.message : 'This action could not be completed.',
     });
@@ -132,7 +132,10 @@ class Studio {
   fail(error: unknown) {
     if (this.state.fatalError || (error instanceof DOMException && error.name === 'AbortError'))
       return;
-    Log.error('app.fatal', error, { connection: this.state.connection, phase: this.state.phase });
+    Log.error('application_error', error, {
+      connection: this.state.connection,
+      phase: this.state.phase,
+    });
     this.cancelEntry();
     ++this.generation;
     this.disconnect();
@@ -262,10 +265,10 @@ class Studio {
       this.patch({ curriculum });
       this.applySnapshot(snapshot);
       this.patch({ loading: false, error: null, setupOpen: true, setupComplete: false });
-      Log.event('app.ready', {
-        authenticated: Boolean(session),
-        lessonId: snapshot.course.selectedLesson,
-      });
+      if (!this.visitRecorded) {
+        this.visitRecorded = true;
+        Log.event('user_open_app', { path: location.pathname, authenticated: Boolean(session) });
+      }
       if (session) account.completedGuestTransfer();
       return true;
     } catch (error) {
@@ -449,10 +452,6 @@ class Studio {
   }
   async startTraining(loadView: () => Promise<void>) {
     if (this.state.busy || this.state.fatalError) return;
-    Log.event('training.start_clicked', {
-      mode: this.state.snapshot?.session?.mode,
-      microphone: this.state.previewingMicrophone,
-    });
     const generation = this.generation;
     const input = this.state.previewingMicrophone || this.state.hasMicrophone ? 'voice' : 'text';
     this.previewGeneration++;
@@ -475,6 +474,12 @@ class Studio {
         this.state.snapshot?.session?.mode ?? (this.state.snapshot?.configured ? 'coach' : 'solo'),
         input,
       );
+      if (
+        !this.state.fatalError &&
+        !this.state.setupOpen &&
+        this.state.snapshot?.session?.status === 'active'
+      )
+        Log.event('user_start_training', { mode: this.state.snapshot.session.mode, input });
     } catch (error) {
       if (generation === this.generation) {
         this.reportError(error);
@@ -512,7 +517,6 @@ class Studio {
       this.patch({ speakerDevice: selected });
       this.dismissAudioNotice(surface);
       this.remember('speaker', selected);
-      Log.event('audio.output_selected', { systemDefault: selected === '' });
       void this.refreshDevices();
     } catch (error) {
       this.reportAudioError(error, surface);
@@ -520,7 +524,6 @@ class Studio {
   }
   async chooseMicrophone(microphoneDevice: string) {
     if (this.state.fatalError) return;
-    Log.event('audio.input_selected', { enabled: microphoneDevice !== 'none' });
     this.patch({ microphoneDevice, microphoneError: null });
     this.remember('microphone', microphoneDevice);
     if (microphoneDevice === 'none') {
@@ -544,11 +547,6 @@ class Studio {
     } else if (this.state.setupOpen) await this.previewMicrophone();
   }
   private microphoneError(error: unknown) {
-    Log.event(
-      'audio.input_failed',
-      { code: error instanceof Error ? error.name : 'UnknownError' },
-      { level: 'warn' },
-    );
     const message =
       error instanceof DOMException && error.name === 'NotAllowedError'
         ? 'Microphone access was denied. Allow it in your browser to enable voice input.'
@@ -859,13 +857,11 @@ class Studio {
     return operation;
   }
   private async connect(sessionId: string, input: 'voice' | 'text', generation: number) {
-    Log.event('realtime.connect_started', { sessionId, input });
     this.conversation.reset();
     this.patch({ connection: 'connecting', phase: 'connecting' });
     await this.transport.connect(sessionId);
     if (generation !== this.generation) return;
     this.patch({ connection: 'connected', phase: 'thinking', busy: false, setupOpen: false });
-    Log.event('realtime.connected', { sessionId, input });
     this.conversation.start();
     if (input === 'voice') void this.toggleMicrophone();
   }
@@ -972,11 +968,6 @@ class Studio {
   async send(text: string): Promise<boolean> {
     const session = this.state.snapshot?.session;
     if (!session || !text.trim() || this.state.fatalError) return false;
-    Log.event('input.submitted', {
-      input: 'text',
-      characters: text.trim().length,
-      mode: session.mode,
-    });
     this.patch({ error: null, answerReveal: null });
     if (session.mode === 'coach') {
       if (!this.transport.connected) {
@@ -1028,10 +1019,6 @@ class Studio {
   }
   async action(name: ToolName, args: Record<string, unknown> = {}) {
     if (this.state.fatalError) return;
-    Log.event('action.requested', {
-      action: name,
-      lessonId: this.state.snapshot?.course.selectedLesson,
-    });
     if (name === 'pause_session' || name === 'end_session') this.cancelEntry();
     const session = this.state.snapshot?.session;
     if (!session) return;
@@ -1043,10 +1030,6 @@ class Studio {
   }
   async focus(skillId: SkillId) {
     if (this.state.fatalError) return;
-    Log.event('lesson.selected', {
-      lessonId: skillId,
-      previousLessonId: this.state.snapshot?.course.selectedLesson,
-    });
     this.cancelEntry();
     if (this.state.connection === 'connected') {
       await this.action('select_lesson', { skillId });
@@ -1068,7 +1051,6 @@ class Studio {
   }
   async welcome() {
     if (this.state.busy || this.state.loading || this.state.fatalError) return;
-    Log.event('lesson.selected', { lessonId: 'welcome' });
     this.cancelEntry();
     if (this.state.connection === 'connected') {
       await this.action('show_welcome');
@@ -1129,12 +1111,6 @@ class Studio {
   }
   private async play(plan: AudioPlan, sessionId: string, exerciseId?: string, replay = false) {
     const playback = ++this.playbackGeneration;
-    Log.event('audio.started', {
-      questionId: exerciseId,
-      replay,
-      instrument: plan.instrument,
-      durationSeconds: plan.duration,
-    });
     this.patch({
       phase: 'playing',
       musicPlayback: { exerciseId, replay },
@@ -1147,7 +1123,6 @@ class Studio {
             this.reportError(error),
           );
       });
-      Log.event('audio.finished', { questionId: exerciseId, replay, completed: finished });
       if (playback === this.playbackGeneration && finished && this.state.phase === 'playing')
         this.patch({ phase: 'listening' });
       return finished;
@@ -1204,8 +1179,6 @@ class Studio {
       this.captionDeltas.set(id, text);
     }
     if (complete) this.captionDeltas.delete(id);
-    if (role === 'user' && complete && id.startsWith('user:'))
-      Log.event('input.submitted', { input: 'voice', characters: text.length });
     const previous = this.state.messages.find((message) => message.id === id);
     this.messageTime = Math.max(Date.now(), this.messageTime + 1);
     const message: Transcript = {

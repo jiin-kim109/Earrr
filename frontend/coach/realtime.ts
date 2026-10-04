@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { api } from '../lib/api.js';
-import { Log } from '../lib/log.js';
 import type { Presentation } from '../../server/types/agent.types.js';
 
 export interface ResponseRequest {
@@ -224,12 +223,6 @@ export class RealtimeConnection {
       stream.getTracks().forEach((item) => item.stop());
       throw new Error('The selected microphone has no audio track.');
     }
-    const settings = typeof track.getSettings === 'function' ? track.getSettings() : {};
-    Log.event('voice.input_configured', {
-      echoCancellation: settings.echoCancellation,
-      noiseSuppression: settings.noiseSuppression,
-      autoGainControl: settings.autoGainControl,
-    });
     track.onended = () => {
       if (
         !this.intentionalClose &&

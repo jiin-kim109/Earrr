@@ -56,12 +56,10 @@ export const logEventSchema = z
     event: z
       .string()
       .min(1)
-      .max(80)
-      .regex(/^[a-z][a-z0-9_.-]*$/),
+      .max(128)
+      .regex(/^[a-z][a-z0-9_]*$/),
     level: z.enum(['info', 'warn', 'error']),
     sessionId: z.string().uuid().nullable(),
-    visitId: z.string().uuid().nullable(),
-    visitorId: z.string().uuid().nullable(),
     requestId: z.string().uuid().nullable(),
     message: z.record(z.string(), z.unknown()).transform((value, context) => {
       try {
@@ -77,4 +75,34 @@ export const logEventSchema = z
   })
   .strict();
 
-export const logBatchSchema = z.object({ events: z.array(logEventSchema).min(1).max(5) }).strict();
+const legacyEventNames = new Map([
+  ['app.opened', 'user_open_app'],
+  ['app.fatal', 'application_error'],
+  ['auth.changed', 'user_authentication_changed'],
+]);
+const legacyLogEventSchema = logEventSchema
+  .extend({
+    event: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[a-z][a-z0-9_.-]*$/),
+    visitId: z.string().uuid().nullable().optional(),
+    visitorId: z.string().uuid().nullable().optional(),
+  })
+  .transform(({ visitId: _visitId, visitorId: _visitorId, ...event }) => {
+    const name =
+      legacyEventNames.get(event.event) ??
+      (logEventSchema.shape.event.safeParse(event.event).success ? event.event : null);
+    return name ? logEventSchema.parse({ ...event, event: name }) : null;
+  });
+
+export const logBatchSchema = z
+  .object({
+    events: z
+      .array(z.union([logEventSchema, legacyLogEventSchema]))
+      .min(1)
+      .max(5),
+  })
+  .strict()
+  .transform(({ events }) => ({ events: events.filter((event) => event !== null) }));

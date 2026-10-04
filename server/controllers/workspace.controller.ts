@@ -31,7 +31,6 @@ export function workspaceRoutes(config: Config, directory: WorkspaceDirectory) {
     const { workspace, token } = await directory.createGuest(input.save);
     res.locals.workspace = workspace;
     Log.context({ actorId: `guest:${workspace.id}` });
-    Log.event('workspace.opened', { kind: 'guest', restored: Boolean(input.save) });
     return reply(res, { snapshot: await workspace.game.snapshot(), guestToken: token });
   });
   router.post('/workspaces/import', async (req, res) => {
@@ -43,7 +42,6 @@ export function workspaceRoutes(config: Config, directory: WorkspaceDirectory) {
     const workspace = await directory.migrate(token, input.guestToken, input.save);
     res.locals.workspace = workspace;
     Log.context({ actorId: `account:${workspace.id}` });
-    Log.event('workspace.imported', { kind: 'account' });
     return reply(res, await workspace.game.snapshot());
   });
   return router;

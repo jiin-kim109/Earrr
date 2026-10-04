@@ -12,6 +12,7 @@ beforeEach(async () => {
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => local.get(key) ?? null,
     setItem: (key: string, value: string) => local.set(key, value),
+    removeItem: (key: string) => local.delete(key),
   });
   vi.stubGlobal('window', new EventTarget());
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
@@ -39,16 +40,16 @@ afterEach(async () => {
 });
 
 describe('contextual browser events', () => {
-  it('records one app visit and persists only an anonymous visitor id, not a log cache', async () => {
+  it('clears retired visitor tracking without logging anonymous startup or visibility traces', async () => {
     local.set('earrr:visitor', '------------------------------------');
     Log.initialize();
     Log.initialize();
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('pagehide'));
     await Log.flush();
-    expect(calls.flatMap((call) => call.events)).toHaveLength(1);
-    expect(calls[0]!.events[0]!.event).toBe('app.opened');
-    expect(calls[0]!.events[0]!.visitorId).toBe(local.get('earrr:visitor'));
-    expect(local.get('earrr:visitor')).not.toBe('------------------------------------');
-    expect([...local.keys()]).toEqual(['earrr:visitor']);
+    expect(calls).toEqual([]);
+    expect([...local.keys()]).toEqual([]);
+    expect(Object.keys(Log.headers())).toEqual(['x-earrr-request-id']);
   });
 
   it('batches small keepalive requests with automatic session context and sanitized JSON', async () => {
@@ -58,19 +59,30 @@ describe('contextual browser events', () => {
       access: () => ({ identity: 'guest:fixture', headers: { 'x-earrr-guest': 'fixture' } }),
     });
     for (let index = 0; index < 11; index++)
-      Log.event('training.action', {
+      Log.event('user_submit_exercise_answer', {
         index,
         password: 'private',
         dimensions: { lesson: 'triads' },
       });
     await Log.flush();
-    expect(calls.flatMap((call) => call.events)).toHaveLength(12);
+    expect(calls.flatMap((call) => call.events)).toHaveLength(11);
     expect(calls.every((call) => call.events.length <= 5 && call.keepalive)).toBe(true);
     expect(
       calls.flatMap((call) => call.events).every((event) => event.sessionId === sessionId),
     ).toBe(true);
     expect(JSON.stringify(calls)).not.toContain('private');
     expect(calls[0]!.headers.get('x-earrr-client')).toBe('1');
+    expect(
+      calls
+        .flatMap((call) => call.events)
+        .every(
+          (event) =>
+            !('visitId' in event) &&
+            !('visitorId' in event) &&
+            !('source' in event) &&
+            !('releaseId' in event),
+        ),
+    ).toBe(true);
   });
 
   it('never sends queued events under a different identity after login or logout', async () => {
@@ -79,20 +91,21 @@ describe('contextual browser events', () => {
       session: () => null,
       access: () => ({ identity: owner, headers: { 'x-earrr-guest': owner } }),
     });
-    Log.event('guest.action', { count: 1 });
+    Log.event('user_open_app', { count: 1 });
     owner = 'guest:second';
-    Log.event('second.action', { count: 2 });
+    Log.event('user_start_training', { count: 2 });
     await Log.flush();
     expect(calls).toHaveLength(2);
     expect(calls[0]!.headers.get('x-earrr-guest')).toBe('guest:first');
     expect(calls[1]!.headers.get('x-earrr-guest')).toBe('guest:second');
-    expect(calls[1]!.events.map((event) => event.event)).toEqual(['second.action']);
+    expect(calls[1]!.events.map((event) => event.event)).toEqual(['user_start_training']);
   });
 
   it('makes log delivery failures explicit without rejecting application work or retrying indefinitely', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.mocked(fetch).mockRejectedValue(new TypeError('Network unavailable.'));
     Log.initialize();
+    Log.event('user_open_app');
     await expect(Log.flush()).resolves.toBeUndefined();
     expect(fetch).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith(expect.stringContaining('Could not send'));

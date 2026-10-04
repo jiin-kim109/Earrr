@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { settingsSchema } from '../../shared/schemas/user.js';
 import { requestGame, reply } from '../request-context.js';
-import { Log } from '../services/log.service.js';
 
 export function userRoutes() {
   const router = Router();
@@ -22,11 +21,6 @@ export function userRoutes() {
           payload: { settings },
         });
       }
-    });
-    Log.event('settings.changed', {
-      instrument: settings.instrument,
-      volume: settings.volume,
-      voice: settings.voice,
     });
     reply(res, await game.snapshot());
   });

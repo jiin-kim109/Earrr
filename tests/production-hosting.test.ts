@@ -186,5 +186,6 @@ describe('public health metadata', () => {
     });
     expect(JSON.stringify(result.body)).not.toContain(config.apiKey);
     expect(result.headers['cache-control']).toBe('no-store');
+    expect(result.headers['x-robots-tag']).toBe('noindex');
   });
 });

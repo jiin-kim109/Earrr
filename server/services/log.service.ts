@@ -10,13 +10,12 @@ import type { ToolRequest, ToolResult } from '../types/agent.types.js';
 const context = new AsyncLocalStorage<LogContext>();
 const pending: LogRow[] = [];
 let writer: ((events: LogRow[]) => Promise<void>) | null = null;
-let releaseId: string | null = null;
 let environment: LogRow['environment'] = 'development';
 let privateValues: readonly string[] = [];
 let timer: ReturnType<typeof setTimeout> | undefined;
 let flushing: Promise<void> | null = null;
 
-function enqueue(event: LogEvent, source: LogRow['source'], fields: LogContext) {
+function enqueue(event: LogEvent, fields: LogContext) {
   if (!writer) return;
   const item = logEventSchema.parse(event);
   if (pending.length >= 500) {
@@ -28,13 +27,9 @@ function enqueue(event: LogEvent, source: LogRow['source'], fields: LogContext) 
     timestamp: item.timestamp,
     event_name: item.event,
     level: item.level,
-    source,
     actor_id: fields.actorId ?? null,
     session_id: item.sessionId,
-    visit_id: item.visitId,
-    visitor_id: item.visitorId,
     request_id: item.requestId,
-    release_id: releaseId,
     environment,
     message: sanitizeLogMessage(item.message, privateValues),
   });
@@ -51,12 +46,10 @@ function enqueue(event: LogEvent, source: LogRow['source'], fields: LogContext) 
 export const Log = {
   configure(options: {
     write: ((events: LogRow[]) => Promise<void>) | null;
-    releaseId?: string;
     secrets?: readonly string[];
     environment?: LogRow['environment'];
   }) {
     writer = options.write;
-    releaseId = options.releaseId ?? null;
     privateValues = options.secrets?.filter(Boolean) ?? [];
     environment = options.environment ?? 'development';
   },
@@ -76,17 +69,14 @@ export const Log = {
     try {
       enqueue(
         {
-          id: randomUUID(),
+          id: options.eventId ?? randomUUID(),
           timestamp: new Date().toISOString(),
           event,
           level: options.level ?? 'info',
           sessionId: current.sessionId ?? null,
-          visitId: current.visitId ?? null,
-          visitorId: current.visitorId ?? null,
           requestId: current.requestId ?? null,
           message,
         },
-        'server',
         current,
       );
     } catch {
@@ -111,7 +101,7 @@ export const Log = {
     );
   },
   ingest(event: LogEvent, actorId: string | null) {
-    enqueue(event, 'client', { actorId });
+    enqueue(event, { actorId });
   },
   flush(): Promise<void> {
     clearTimeout(timer);
@@ -145,51 +135,21 @@ const headerId = (value: string | undefined) => {
   const parsed = z.string().uuid().safeParse(value);
   return parsed.success ? parsed.data : null;
 };
-export const requestLogging: RequestHandler = (req, res, next) => {
+export const requestLogContext: RequestHandler = (req, res, next) => {
   if (req.path === '/logs' || req.path === '/health') return next();
   const fields: LogContext = {
     requestId: headerId(req.get('x-earrr-request-id')) ?? randomUUID(),
-    visitId: headerId(req.get('x-earrr-visit-id')),
-    visitorId: headerId(req.get('x-earrr-visitor-id')),
   };
-  fields.actorId = fields.visitorId ? `visitor:${fields.visitorId}` : null;
-  const started = performance.now();
-  const path = req.originalUrl.split('?')[0];
-  let finished = false;
   res.setHeader('x-earrr-request-id', fields.requestId!);
-  Log.scope(fields, () => {
-    const current = context.getStore()!;
-    res.once('finish', () => {
-      finished = true;
-      Log.scope(current, () =>
-        Log.event(
-          'request.completed',
-          {
-            method: req.method,
-            path,
-            status: res.statusCode,
-            durationMs: Math.round(performance.now() - started),
-          },
-          { level: res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info' },
-        ),
-      );
-    });
-    res.once('close', () => {
-      if (!finished)
-        Log.scope(current, () =>
-          Log.event(
-            'request.cancelled',
-            {
-              method: req.method,
-              path,
-              durationMs: Math.round(performance.now() - started),
-            },
-            { level: 'warn' },
-          ),
-        );
-    });
-    next();
-  });
+  Log.scope(fields, next);
+};
+
+const activityEvents: Partial<Record<ToolRequest['name'], string>> = {
+  select_lesson: 'user_open_lesson',
+  show_welcome: 'user_open_lesson',
+  start_practice: 'user_start_exercise_round',
+  start_round: 'user_start_exercise_round',
+  end_session: 'user_end_training',
 };
 
 export function logToolResult(
@@ -200,42 +160,39 @@ export function logToolResult(
     result.snapshot.session?.id ??
     (input.name === 'end_session' ? (input.sessionId ?? null) : null);
   Log.context({ sessionId });
-  Log.event('tool.completed', {
-    tool: input.name,
+  const details = {
     callId: input.callId,
-    lessonId: result.snapshot.course.selectedLesson,
-    phase: result.snapshot.session?.phase,
+    lessonId: result.snapshot.teaching?.section ?? result.snapshot.course.selectedLesson,
     mode: result.snapshot.session?.mode,
-    questionId: result.snapshot.current?.id,
-    stepId: result.teaching?.stepId,
-    sectionId: result.snapshot.teaching?.section ?? result.snapshot.course.selectedLesson,
-  });
-  if (['start_session', 'select_lesson', 'show_welcome'].includes(input.name))
-    Log.event('lesson.entered', {
-      lessonId: result.snapshot.teaching?.section ?? result.snapshot.course.selectedLesson,
-      mode: result.snapshot.session?.mode,
-      callId: input.callId,
-    });
+  };
+  const activity = activityEvents[input.name];
+  if (activity) Log.event(activity, details, { eventId: input.callId, sessionId });
   if (
     ['submit_answer', 'skip_exercise'].includes(input.name) &&
     result.grade &&
     result.grade.verdict !== 'incomplete'
-  )
-    Log.event(input.name === 'skip_exercise' ? 'answer.skipped' : 'answer.result', {
-      callId: input.callId,
-      questionId: result.gradedExerciseId,
-      attemptId:
-        result.snapshot.feedback && result.snapshot.feedback.exerciseId === result.gradedExerciseId
-          ? result.snapshot.feedback.attemptId
-          : null,
-      lessonId: result.snapshot.course.selectedLesson,
-      verdict: result.grade.verdict,
-      score: result.grade.score,
-    });
-  if (result.roundResult)
-    Log.event('round.completed', {
-      ...result.roundResult,
-      answers: undefined,
-      callId: input.callId,
-    });
+  ) {
+    const feedback = result.snapshot.feedback;
+    const attemptId =
+      feedback && feedback.exerciseId === result.gradedExerciseId ? feedback.attemptId : null;
+    Log.event(
+      input.name === 'skip_exercise' ? 'user_skip_exercise' : 'user_submit_exercise_answer',
+      {
+        ...details,
+        questionId: result.gradedExerciseId,
+        attemptId,
+        verdict: result.grade.verdict,
+        score: result.grade.score,
+      },
+      { eventId: input.callId, sessionId },
+    );
+  }
+  if (result.roundResult) {
+    const { answers: _answers, ...round } = result.roundResult;
+    Log.event(
+      'user_complete_exercise_round',
+      { ...round, callId: input.callId },
+      { eventId: round.id, sessionId },
+    );
+  }
 }

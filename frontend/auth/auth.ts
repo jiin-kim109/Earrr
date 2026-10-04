@@ -83,7 +83,6 @@ async function action(work: () => Promise<void>) {
   try {
     await work();
   } catch (error) {
-    Log.error('auth.failed', error, { view: useAuth.getState().view });
     const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
     useAuth.setState({
       error:
@@ -109,6 +108,7 @@ async function apply(
   force = false,
 ) {
   const nextUser = session?.user.id ?? null;
+  const changedUser = nextUser !== currentUser;
   publishSession(session);
   if (nextUser !== currentUser || migrate || force) {
     await hooks!.identity(session, migrate);
@@ -116,7 +116,7 @@ async function apply(
     if (migrate) account.completedGuestTransfer();
   }
   useAuth.setState({ view: null, error: null, notice: null });
-  Log.event('auth.changed', { authenticated: Boolean(session), guestTransfer: migrate });
+  if (changedUser && session) Log.event(migrate ? 'user_sign_up' : 'user_log_in');
   if (session) await loadProfile(session);
 }
 

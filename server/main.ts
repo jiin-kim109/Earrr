@@ -10,6 +10,8 @@ import { WorkspaceDirectory } from './services/storage/workspace.js';
 import { defaultSettings } from './repositories/user.repository.js';
 import { Log } from './services/log.service.js';
 import { LogRepository } from './repositories/log.repository.js';
+import { siteRoutes } from './controllers/site.controller.js';
+import { renderPublicHtml } from './services/site.service.js';
 
 import express from 'express';
 
@@ -45,7 +47,6 @@ const storage = config.supabaseUrl
 const logs = storage instanceof WorkspaceDirectory ? new LogRepository(storage.cloud.client) : null;
 Log.configure({
   write: logs ? (events) => logs.write(events) : null,
-  releaseId: config.releaseId,
   environment:
     process.env.NODE_ENV === 'production'
       ? 'production'
@@ -67,20 +68,23 @@ const entrySettings = `<script id="earrr-entry-settings" type="application/json"
   volume: defaultSettings.volume,
 })}</script>`;
 const withEntrySettings = (html: string) => html.replace('</head>', `${entrySettings}</head>`);
+app.use(siteRoutes(config.publicOrigin));
 
 if (production) {
   const client = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'client');
-  let html = readFileSync(resolve(client, 'index.html'), 'utf8');
-  if (config.publicOrigin) {
-    html = html
-      .replaceAll('content="/brand/', `content="${config.publicOrigin}/brand/`)
-      .replace(
-        '</head>',
-        `<link rel="canonical" href="${config.publicOrigin}/"><meta property="og:url" content="${config.publicOrigin}/"></head>`,
-      );
-  }
+  const html = renderPublicHtml(
+    readFileSync(resolve(client, 'index.html'), 'utf8'),
+    config.publicOrigin,
+  );
+  app.use(
+    '/assets',
+    express.static(resolve(client, 'assets'), { dotfiles: 'deny', maxAge: '1y', immutable: true }),
+  );
   app.use(express.static(client, { dotfiles: 'deny', index: false }));
-  app.get('/{*path}', (_req, res) => res.type('html').send(withEntrySettings(html)));
+  app.get(['/', '/auth/callback'], (_req, res) => res.type('html').send(withEntrySettings(html)));
+  app.get('/{*path}', (_req, res) =>
+    res.status(404).set('X-Robots-Tag', 'noindex').type('text/plain').send('Not found.'),
+  );
 } else {
   const { createServer: createViteServer } = await import('vite');
   const vite = await createViteServer({
@@ -97,7 +101,6 @@ if (production) {
 
 const listenHost = config.listenHost ?? '127.0.0.1';
 http.listen(config.port, listenHost, () => {
-  Log.event('server.started', { port: config.port, configured: config.configured });
   console.log(
     `Telemetry: ${Log.enabled ? 'Supabase raw events' : 'disabled (no Supabase storage)'}.`,
   );
@@ -121,7 +124,6 @@ http.on('error', async (error: NodeJS.ErrnoException) => {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () =>
     http.close(async () => {
-      Log.event('server.stopped', { signal });
       let deadline: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([
         Log.flush(),

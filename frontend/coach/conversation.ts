@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { Log } from '../lib/log.js';
 import type { Snapshot, ToolName, ToolResult } from '../../server/types/agent.types.js';
 import type { Transcript } from './types.js';
 import type {
@@ -182,11 +181,6 @@ export class Conversation {
   private voiceTurn(id: string) {
     let turn = this.voiceTurns.get(id);
     if (turn === undefined) {
-      Log.event('voice.input_started', {
-        overlapsTutor: [...this.responses.values()].some(
-          (run) => run.request.turn === this.turn && run.audio && !run.drained && !run.settled,
-        ),
-      });
       turn = this.begin();
       this.voiceTurns.set(id, turn);
       this.handlers.message('user', 'Listening…', `user:${id}`, false);

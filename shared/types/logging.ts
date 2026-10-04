@@ -5,6 +5,7 @@ export type LogEvent = z.infer<typeof logEventSchema>;
 export type LogMessage = Record<string, unknown>;
 export type LogLevel = LogEvent['level'];
 export interface LogOptions {
+  eventId?: string;
   level?: LogLevel;
   sessionId?: string | null;
   requestId?: string | null;

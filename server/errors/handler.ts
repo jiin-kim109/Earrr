@@ -39,13 +39,13 @@ export function requestErrors(
   return (error: unknown, req, res, next) => {
     if (res.headersSent) return next(error);
     const failure = normalizedError(error);
-    if (req.path !== '/api/logs') {
+    if (req.path !== '/api/logs' && failure.status >= 500) {
       const recorded = new Error(redact(error instanceof Error ? error.message : failure.message));
       if (error instanceof Error) {
         recorded.name = error.name;
         if (error.stack) recorded.stack = redact(error.stack);
       }
-      Log.error('request.failed', recorded, {
+      Log.error('server_request_failed', recorded, {
         path: req.path,
         code: failure.code,
         status: failure.status,

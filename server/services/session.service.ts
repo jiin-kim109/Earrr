@@ -307,7 +307,6 @@ export class SessionService {
       throw AppError.create('session_not_ready');
     }
     Log.context({ sessionId });
-    Log.event('realtime.connect_started', { deployment: config.deployment });
     const now = this.now().getTime();
     const recent = (this.negotiations.get(client) ?? []).filter(
       (time: number) => now - time < 60_000,

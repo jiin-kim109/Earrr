@@ -3,8 +3,7 @@ import type { LogEvent, LogMessage, LogOptions } from '../../shared/types/loggin
 
 type Access = { identity: string; headers: Record<string, string> };
 const pending: Array<{ event: LogEvent; access: Access }> = [];
-let visitId: string | null = null;
-let visitorId: string | null = null;
+let initialized = false;
 let session: () => string | null = () => null;
 let access: () => Access = () => ({ identity: 'anonymous', headers: {} });
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -16,60 +15,30 @@ export const Log = {
       session = options.session;
       access = options.access;
     }
-    if (visitId) return;
-    visitId = crypto.randomUUID();
-    const openedAt = performance.now();
+    if (initialized) return;
+    initialized = true;
     try {
-      const saved = localStorage.getItem('earrr:visitor');
-      const parsed = logEventSchema.shape.visitorId.safeParse(saved);
-      visitorId = parsed.success && parsed.data ? parsed.data : crypto.randomUUID();
-      localStorage.setItem('earrr:visitor', visitorId);
+      localStorage.removeItem('earrr:visitor');
     } catch {
-      visitorId = crypto.randomUUID();
-      console.warn('[telemetry] Anonymous visitor ID is temporary because storage is unavailable.');
+      console.warn('[telemetry] Retired visitor tracking could not be cleared.');
     }
     document.addEventListener('visibilitychange', () => {
-      this.event('app.visibility', { state: document.visibilityState });
       if (document.visibilityState === 'hidden') void this.flush();
     });
-    window.addEventListener('pagehide', () => {
-      this.event('app.closed', { durationMs: Math.round(performance.now() - openedAt) });
-      void this.flush();
-    });
-    let referrerOrigin: string | null = null;
-    if (document.referrer) {
-      try {
-        const url = new URL(document.referrer);
-        if (url.protocol === 'https:' || url.protocol === 'http:') referrerOrigin = url.origin;
-      } catch {
-        console.warn('[telemetry] Invalid referrer omitted.');
-      }
-    }
-    this.event('app.opened', {
-      path: location.pathname,
-      viewport: { width: innerWidth, height: innerHeight },
-      language: navigator.language,
-      referrerOrigin,
-    });
+    window.addEventListener('pagehide', () => void this.flush());
   },
   headers(requestId = crypto.randomUUID()): Record<string, string> {
-    return {
-      'x-earrr-request-id': requestId,
-      ...(visitId ? { 'x-earrr-visit-id': visitId } : {}),
-      ...(visitorId ? { 'x-earrr-visitor-id': visitorId } : {}),
-    };
+    return { 'x-earrr-request-id': requestId };
   },
   event(event: string, message: LogMessage = {}, options: LogOptions = {}) {
-    if (!visitId) return;
+    if (!initialized) return;
     try {
       const item = logEventSchema.parse({
-        id: crypto.randomUUID(),
+        id: options.eventId ?? crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         event,
         level: options.level ?? 'info',
         sessionId: options.sessionId === undefined ? session() : options.sessionId,
-        visitId,
-        visitorId,
         requestId: options.requestId ?? null,
         message,
       });

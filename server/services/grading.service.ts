@@ -13,7 +13,7 @@ import type { Session } from '../types/session.types.js';
 import { emptyProgress, updateProgress } from './progress.service.js';
 import type { ProgressService } from './progress.service.js';
 import { chords, intervalNames, inversionNames, parsePitch, scales } from './exercise/music.js';
-import { normalizeTaskAnswer } from './exercise/tasks.js';
+import { missingPositions, normalizeTaskAnswer } from './exercise/tasks.js';
 
 export class GradingService {
   constructor(
@@ -87,6 +87,14 @@ function describe(field: AnswerField, value: MusicalAnswer[AnswerField]): string
 
 export function gradeAnswer(exercise: Exercise, answer: MusicalAnswer): Grade {
   answer = normalizeTaskAnswer(exercise, answer);
+  const gaps = missingPositions(exercise);
+  const expectedAnswer =
+    gaps.length > 1
+      ? {
+          ...exercise.expected,
+          progression: gaps.map((index) => exercise.expected.progression![index]!),
+        }
+      : exercise.expected;
   const missing = exercise.required.filter(
     (field) =>
       answer[field] === undefined || (field === 'root' && parsePitch(answer.root!) === null),
@@ -104,7 +112,7 @@ export function gradeAnswer(exercise: Exercise, answer: MusicalAnswer): Grade {
   const details: GradeDetail[] = [];
   const scores: number[] = [];
   for (const field of exercise.required) {
-    const expected = exercise.expected[field]!;
+    const expected = expectedAnswer[field]!;
     const received = answer[field]!;
     let score = 0;
     if (field === 'root')
@@ -187,6 +195,8 @@ const aliases: Record<string, ChordQuality> = {
   aug: 'augmented',
   sus2: 'sus2',
   sus4: 'sus4',
+  sus: 'sus4',
+  suspended: 'sus4',
   maj7: 'major7',
   m7: 'minor7',
   min7: 'minor7',
@@ -238,12 +248,13 @@ export function parseSoloAnswer(
   }
   if (exercise.kind === 'pitch')
     return /^[A-G](?:[#b]| sharp| flat)?\d?$/i.test(raw) ? { root: raw } : null;
-  if (exercise.kind === 'degree' || exercise.kind === 'melody' || exercise.kind === 'progression') {
-    if (
-      exercise.kind === 'progression' &&
-      exercise.task?.kind === 'complete' &&
-      /^[A-G]/.test(raw)
-    ) {
+  if (
+    exercise.kind === 'degree' ||
+    exercise.kind === 'function' ||
+    exercise.kind === 'melody' ||
+    exercise.kind === 'progression'
+  ) {
+    if ((exercise.kind === 'progression' || exercise.kind === 'function') && /^[A-G]/i.test(raw)) {
       const chord = parseSoloAnswer(raw, { kind: 'chord' });
       if (chord?.root) return chord;
     }
@@ -268,7 +279,7 @@ export function parseSoloAnswer(
     const parts = lower.split(/[\s,;>\u2013\u2014-]+/).filter(Boolean);
     const numbers = parts.map((item) => {
       const numeral =
-        exercise.kind === 'progression'
+        exercise.kind === 'progression' || exercise.kind === 'function'
           ? /^(vii|iii|vi|iv|ii|v|i)(?:maj7|7|[°oø]7?)?$/.exec(item)?.[1]
           : undefined;
       return /^\d$/.test(item) ? Number(item) : degrees[numeral ?? item];
@@ -276,7 +287,9 @@ export function parseSoloAnswer(
     if (!numbers.length || numbers.some((value) => value === undefined || value < 1 || value > 7))
       return null;
     const valid = numbers.filter((value): value is number => value !== undefined);
-    return exercise.kind === 'degree' || (exercise.task?.kind === 'complete' && valid.length === 1)
+    return exercise.kind === 'degree' ||
+      exercise.kind === 'function' ||
+      (exercise.task?.kind === 'complete' && valid.length === 1)
       ? valid.length === 1
         ? { degree: valid[0]! }
         : null
@@ -325,9 +338,13 @@ export function parseSoloAnswer(
       )?.[0];
     return scale ? { scale: scale as ScaleId } : null;
   }
-  const rootMatch = /^([A-G](?:#|b)?)(?=\s|$|m|M|a|d|s|\d)/.exec(raw);
-  const root = rootMatch?.[1];
+  const rootMatch =
+    /^([A-G](?:#|b)?)(?=\s|$|m|M|a|d|s|\d|\/)/.exec(raw) ??
+    /^([a-g](?:#|b)?)(?=\s|$|m|M|add\d|dim|aug|sus[24]|\d|\/)/.exec(raw);
+  const root = rootMatch ? rootMatch[1]![0]!.toUpperCase() + rootMatch[1]!.slice(1) : undefined;
   let suffix = root ? raw.slice(root.length).trim() : raw;
+  const slash = /\/([A-G](?:#|b){0,2})$/i.exec(suffix);
+  if (slash) suffix = suffix.slice(0, slash.index).trim();
   const inversionMatch =
     /\b(root position|first inversion|1st inversion|second inversion|2nd inversion|third inversion|3rd inversion)\b/i.exec(
       suffix,
@@ -346,7 +363,7 @@ export function parseSoloAnswer(
       .replace(/[,\s]+$/, '')
       .trim();
   }
-  if (suffix === 'M') return null;
+  if (suffix === 'M') suffix = 'major';
   if (/^M\d/.test(suffix)) suffix = suffix.replace(/^M/, 'maj');
   const key = clean(suffix);
   const quality =
@@ -354,7 +371,16 @@ export function parseSoloAnswer(
     Object.entries(chords).find(
       ([id, definition]) => clean(id) === key || clean(definition.name) === key,
     )?.[0];
+  if (!quality && !root && inversion !== undefined) return { inversion };
   if (!quality && !(root && !suffix)) return null;
+  if (slash && root) {
+    const bass = parsePitch(slash[1]!);
+    const rootPitch = parsePitch(root);
+    if (bass === null || rootPitch === null) return null;
+    const intervals = chords[(quality ?? 'major') as ChordQuality].intervals;
+    inversion = intervals.findIndex((interval) => (rootPitch + interval) % 12 === bass);
+    if (inversion < 0 || inversion > 3) return null;
+  }
   return {
     ...(root ? { root } : {}),
     quality: (quality ?? 'major') as ChordQuality,

@@ -55,9 +55,9 @@ describe('two direct interval practice stages', () => {
       'pitch-direction',
       'intervals-foundation',
       'intervals-harmonic',
-      'intervals-chromatic',
+      'triads',
     ]);
-    expect(skills).toHaveLength(21);
+    expect(skills).toHaveLength(29);
     expect(
       (await game.snapshot()).course.lessons.slice(0, 4).map((lesson) => lesson.unlocked),
     ).toEqual([true, true, false, false]);
@@ -167,7 +167,7 @@ describe('two direct interval practice stages', () => {
 
   it('serves catalog metadata without audio and fetches labeled examples separately', async () => {
     const curriculum = await request(app).get('/api/curriculum').expect(200);
-    expect(curriculum.body.lessons).toHaveLength(21);
+    expect(curriculum.body.lessons).toHaveLength(29);
     expect(curriculum.body.lessons[1]).toMatchObject({
       id: 'intervals-foundation',
       checkpoint: { questions: 10, correct: 8 },

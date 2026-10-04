@@ -9,11 +9,7 @@ export class ApiError extends Error {
   }
 
   static unreachable(): ApiError {
-    return new ApiError(
-      'network_unavailable',
-      'The local practice server could not be reached. Make sure it is running, then try again.',
-      0,
-    );
+    return new ApiError('network_unavailable', 'The practice server could not be reached.', 0);
   }
 
   static response(body: unknown, status: number): ApiError {

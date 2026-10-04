@@ -11,7 +11,7 @@ interface ChordDefinition {
 export const chords: Record<ChordQuality, ChordDefinition> = {
   major: {
     name: 'major',
-    suffix: '',
+    suffix: 'M',
     intervals: [0, 4, 7],
     family: 'major',
     color: 'A major third and a perfect fifth.',
@@ -53,7 +53,7 @@ export const chords: Record<ChordQuality, ChordDefinition> = {
   },
   major7: {
     name: 'major seventh',
-    suffix: 'maj7',
+    suffix: 'M7',
     intervals: [0, 4, 7, 11],
     family: 'major',
     color: 'A major triad with a major seventh, one semitone below the octave.',
@@ -132,7 +132,7 @@ export const chords: Record<ChordQuality, ChordDefinition> = {
   },
   major9: {
     name: 'major ninth',
-    suffix: 'maj9',
+    suffix: 'M9',
     intervals: [0, 4, 7, 11, 14],
     family: 'major',
     color: 'A major seventh chord with a natural ninth.',
@@ -167,7 +167,7 @@ export const chords: Record<ChordQuality, ChordDefinition> = {
   },
   major13: {
     name: 'major thirteenth',
-    suffix: 'maj13',
+    suffix: 'M13',
     intervals: [0, 4, 7, 11, 14, 21],
     family: 'major',
     color: 'Major seventh, ninth, and thirteenth; the eleventh is deliberately omitted.',
@@ -346,6 +346,9 @@ export function pitchClass(midi: number): number {
 }
 export function noteName(midi: number, octave = false): string {
   return `${pitchNames[pitchClass(midi)]}${octave ? Math.floor(midi / 12) - 1 : ''}`;
+}
+export function chordSymbol(root: number, quality: ChordQuality) {
+  return `${noteName(root)}${chords[quality].suffix}`.replace(/[()]/g, '');
 }
 export function midiFrequency(midi: number): number {
   return 440 * 2 ** ((midi - 69) / 12);

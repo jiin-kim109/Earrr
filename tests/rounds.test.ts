@@ -41,6 +41,76 @@ async function fixture(path = ':memory:') {
 }
 
 describe('planned ten-question rounds', () => {
+  it.each([0, 1, 2])(
+    'passes immediately after eight correct answers with %i preceding misses',
+    async (misses) => {
+      const { store, game, answer, call } = await fixture();
+      try {
+        for (let index = 0; index < misses; index++) await answer(false);
+        let result: ToolResult | undefined;
+        for (let index = 0; index < 8; index++) {
+          result = await answer(true);
+          if (index < 7) expect(result.roundResult).toBeUndefined();
+        }
+        expect(result!.roundResult).toMatchObject({
+          passed: true,
+          correct: 8,
+          answered: 8 + misses,
+          questions: 10,
+        });
+        expect(result!.roundResult!.answers).toHaveLength(8 + misses);
+        expect(result!.snapshot.session?.answered).toBe(8 + misses);
+        expect(result!.snapshot.session?.awaitingRoundChoice).toBe(true);
+        expect((await call('play_exercise')).audio).toBeUndefined();
+        expect((await game.snapshot()).totalAnswers).toBe(8 + misses);
+        const question = (await game.snapshot()).current!.id;
+        await call('pause_session');
+        await call('resume_session');
+        expect((await game.snapshot()).current!.id).toBe(question);
+        expect((await call('play_exercise')).audio).toBeUndefined();
+        const next = await call('start_round');
+        expect(next.snapshot.current!.id).not.toBe(question);
+        expect(next.snapshot.course.round.answers).toEqual([]);
+      } finally {
+        await store.close();
+      }
+    },
+  );
+
+  it('closes a legacy eight-correct saved round once and keeps the last grade visible on restore', async () => {
+    const { store, game, answer, call } = await fixture();
+    try {
+      for (let index = 0; index < 7; index++) await answer(true);
+      const before = (await store.progress.round('pitch-direction'))!;
+      const completed = await answer(true);
+      const session = completed.snapshot.session!;
+      const exercise = (await store.exercises.get(completed.gradedExerciseId!))!;
+      await store.progress.saveRound({
+        ...before,
+        answers: completed.roundResult!.answers,
+        remaining: before.remaining.filter((item) => item.id !== exercise.roundTargetId),
+        awaitingChoice: false,
+      });
+      await store.db
+        .prepare('DELETE FROM lesson_completions WHERE skill_id=?')
+        .run('pitch-direction');
+      await store.sessions.save({ ...session, awaitingRoundChoice: false });
+      const restored = await AgentService.create(store, false, 'test');
+      const state = await restored.snapshot();
+      expect(state.totalAnswers).toBe(8);
+      expect(state.course.round.previous).toMatchObject({ passed: true, answered: 8, correct: 8 });
+      expect(state.session?.awaitingRoundChoice).toBe(true);
+      expect(state.current?.id).toBe(exercise.id);
+      expect(state.course.lessons[1]?.unlocked).toBe(true);
+      const repeated = await AgentService.create(store, false, 'test');
+      expect((await repeated.snapshot()).course.round).toEqual(state.course.round);
+      expect((await call('play_exercise')).audio).toBeUndefined();
+      expect((await game.snapshot()).totalAnswers).toBe(8);
+    } finally {
+      await store.close();
+    }
+  });
+
   it('stops at the third miss and requires start_round after pause, navigation and restart', async () => {
     const { store, call, answer, sessionId } = await fixture();
     try {
@@ -222,14 +292,14 @@ describe('planned ten-question rounds', () => {
       expect(result!.snapshot.course.round.previous?.passed).toBe(false);
       expect((await call('play_exercise')).audio).toBeUndefined();
       await call('start_round');
-      for (let index = 0; index < 10; index++) {
-        result = await answer(index < 8);
-        if (index < 9) expect(result.lessonCompleted).toBe(false);
+      for (let index = 0; index < 8; index++) {
+        result = await answer(true);
+        if (index < 7) expect(result.lessonCompleted).toBe(false);
       }
       expect(result!.roundResult).toMatchObject({ number: 2, correct: 8, passed: true });
       expect(result!.snapshot.course.round).toMatchObject({ number: 3, correct: 0, answers: [] });
       expect(result!.snapshot.session?.awaitingRoundChoice).toBe(true);
-      expect((await game.snapshot()).totalAnswers).toBe(20);
+      expect((await game.snapshot()).totalAnswers).toBe(18);
       expect((await game.snapshot()).course.lessons[1]?.unlocked).toBe(true);
     } finally {
       await store.close();
@@ -239,7 +309,7 @@ describe('planned ten-question rounds', () => {
   it('starts a new balanced review round after passing, while keeping prior completion', async () => {
     const { store, game, call, answer } = await fixture();
     try {
-      for (let index = 0; index < 10; index++) await answer(true);
+      for (let index = 0; index < 8; index++) await answer(true);
       const passedId = (await game.snapshot()).course.round.id;
       expect((await call('play_exercise')).audio).toBeUndefined();
       await call('start_round');
@@ -293,7 +363,7 @@ describe('planned ten-question rounds', () => {
   it('rolls back round completion and reset when the enclosing checkpoint fails', async () => {
     const { store, game, call, answer } = await fixture();
     try {
-      for (let index = 0; index < 9; index++) await answer(true);
+      for (let index = 0; index < 7; index++) await answer(true);
       const question = await call('play_exercise');
       const exercise = (await store.exercises.get(question.snapshot.current!.id))!;
       const before = await store.progress.round('pitch-direction');
@@ -358,7 +428,7 @@ describe('planned ten-question rounds', () => {
       await store.close();
       store = await Store.open(path);
       const game = await AgentService.create(store, false, 'test');
-      expect((await store.db.prepare('PRAGMA user_version').get())?.user_version).toBe(12);
+      expect((await store.db.prepare('PRAGMA user_version').get())?.user_version).toBe(13);
       expect((await game.snapshot()).current).toBeNull();
       expect((await game.snapshot()).course.round).toMatchObject({
         number: 1,

@@ -98,7 +98,7 @@ export async function verifyRounds(origin: string, snapshot: () => Promise<Snaps
       await expect(page.getByTestId('round-score')).toHaveCount(0);
       await expect(
         page.getByLabel('Exercise player', { exact: true }).locator('[data-outcome="unanswered"]'),
-      ).toHaveCount(10);
+      ).toHaveCount(finalCorrect ? 0 : 5);
       expect((await snapshot()).session?.awaitingRoundChoice).toBe(true);
       await expect(
         page.getByRole('heading', {

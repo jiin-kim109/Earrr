@@ -209,6 +209,46 @@ gh release list --repo jiin-kim109/Earrr
 
 ## Verification and recovery
 
+### Raw event logging
+
+`supabase/migrations/20261004001000_earrr_raw_events.sql` creates one
+service-only `earrr_events` table and an hourly `pg_cron` cleanup of events
+received more than 30 days ago. It was applied to the Earrr Supabase project on
+October 4, 2026 UTC and recorded in migration history. RLS is enabled; anonymous
+reads and authenticated-client writes are denied, while service-role writes are
+allowed. No additional analytics tables or pipelines are created.
+The earlier account schema already existed before CLI migration history was
+tracked; its tables, profile trigger, save RPC and RLS were checked before
+reconciling the existing migration record.
+
+Both frontend and backend use the same compact interface:
+
+```ts
+Log.event('training.start_clicked', { lessonId: 'triads' });
+Log.event('audio.device_unavailable', { kind: 'speaker' }, { level: 'warn' });
+Log.error('request.failed', error, { operation: 'grading' });
+```
+
+Import `Log` from `frontend/lib/log.ts` in browser code or
+`server/services/log.service.ts` on the server. Context is automatic: timestamps,
+event/level/source, learning `session_id`, page-launch `visit_id`, anonymous
+browser `visitor_id`, verified `actor_id`, HTTP `request_id`, environment and
+release. `message` remains JSON for event-specific dimensions. Event names use
+lowercase dot-separated words.
+
+Browser events go through `/api/logs`; clients cannot choose server identities or
+read the table. Session ownership is verified and service-role inserts ignore
+duplicate event IDs. Keep credentials, personal identifiers, raw chat and audio
+out of messages. Known sensitive fields, emails, URL queries and configured server
+secrets are redacted as an additional safeguard, not permission to log user content.
+
+Messages are limited to 8 KB/eight nesting levels. Browser batches contain at
+most five events, server batches twenty; queues are memory-only and bounded.
+Logging never delays grading or retries forever. Failed delivery is diagnostic
+output, so events during complete network loss are not guaranteed. Distinguish
+client/server events and use `callId`, question/attempt IDs when deduplicating
+retried business operations. Developer traffic is marked separately from production.
+
 Build into an isolated output instead of replacing a running local server's `dist`:
 
 ```powershell

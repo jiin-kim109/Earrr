@@ -110,7 +110,8 @@ const scenarios: Array<{
   diagram: string;
   answer: (exercise: Exercise) => string;
 }> = [
-  { skill: 'scale-degrees', target: { degree: 4 }, diagram: 'degree', answer: () => 'fa' },
+  { skill: 'scale-degrees', target: { degree: 3 }, diagram: 'piano', answer: () => 'mi' },
+  { skill: 'major-functions', target: { degree: 4 }, diagram: 'progression', answer: () => 'IV' },
   {
     skill: 'scales',
     target: { scale: 'harmonicMinor' },
@@ -124,10 +125,10 @@ const scenarios: Array<{
     answer: () => 'lydian',
   },
   {
-    skill: 'melodies',
-    target: { length: 4, format: 'complete' },
-    diagram: 'melody',
-    answer: (exercise) => String(exercise.expected.degree),
+    skill: 'minor-modes',
+    target: { scale: 'dorian' },
+    diagram: 'scale',
+    answer: () => 'dorian',
   },
   {
     skill: 'progressions',
@@ -136,35 +137,34 @@ const scenarios: Array<{
     answer: (exercise) => String(exercise.expected.degree),
   },
   {
-    skill: 'jazz-progressions',
-    target: { length: 5, format: 'identify' },
+    skill: 'cadences',
+    target: { length: 3, format: 'complete' },
     diagram: 'progression',
-    answer: (exercise) => exercise.expected.progression!.join(' '),
+    answer: (exercise) => String(exercise.expected.degree),
   },
   {
     skill: 'seventh-colors',
     target: { quality: 'halfDiminished7', format: 'compare' },
-    diagram: 'chord',
+    diagram: 'piano',
     answer: () => 'half diminished',
   },
   {
     skill: 'extensions',
-    target: { quality: 'dominant13', format: 'compare' },
-    diagram: 'chord',
-    answer: () => '13',
+    target: { quality: 'dominant9', format: 'compare' },
+    diagram: 'piano',
+    answer: () => '9',
   },
   {
-    skill: 'altered-dominants',
+    skill: 'upper-alterations',
     target: { quality: '7#11', format: 'identify' },
-    diagram: 'chord',
+    diagram: 'piano',
     answer: () => '7#11',
   },
 ];
 
 for (const width of [1440, 390, 320]) {
   for (const scenario of scenarios) {
-    if (width === 320 && !['scales', 'jazz-progressions', 'extensions'].includes(scenario.skill))
-      continue;
+    if (width === 320 && !['scales', 'cadences', 'extensions'].includes(scenario.skill)) continue;
     test(`${scenario.skill} uses its own concise question, result and review at ${width}`, async ({
       page,
       engine,
@@ -182,19 +182,27 @@ for (const width of [1440, 390, 320]) {
       await expect(player(page).getByTestId('piano-diagram')).toHaveCount(0);
       await expect(player(page).getByTestId('musical-diagram')).toHaveCount(0);
       const question = player(page).getByTestId('question-diagram');
-      if (exercise.task || exercise.kind === 'degree' || exercise.kind === 'progression') {
+      if (
+        exercise.task ||
+        exercise.kind === 'degree' ||
+        exercise.kind === 'function' ||
+        exercise.kind === 'progression'
+      ) {
         await expect(question).toBeVisible();
         await expect(question.locator('[data-note-midi]')).toHaveCount(0);
+        if (exercise.kind === 'function') {
+          await expect(question.getByTestId('music-notation')).toHaveCount(0);
+          await expect(question).toContainText('CM7');
+          await expect(question).toContainText('?');
+        }
         if (exercise.task?.kind === 'complete') {
-          const target = question.locator(`[data-question-position="${exercise.task.gapIndex}"]`);
-          await expect(target).toHaveAttribute('data-masked', 'true');
-          await expect(target).toContainText('?');
+          await expect(question).toContainText('?');
         }
         if (exercise.kind === 'progression' || exercise.kind === 'melody')
           await expect.poll(() => question.getAttribute('data-active-position')).not.toBe('-1');
       }
       await expect(player(page)).toHaveAttribute('data-phase', 'listening');
-      if (scenario.skill === 'progressions' || scenario.skill === 'modes')
+      if (['major-functions', 'progressions', 'modes'].includes(scenario.skill))
         await page.screenshot({
           path: `test-results\\${scenario.skill}-question-${width}.png`,
           fullPage: true,
@@ -207,19 +215,31 @@ for (const width of [1440, 390, 320]) {
       await page.getByRole('button', { name: 'Send message', exact: true }).click();
       const scored: ToolResult = await (await result).json();
       expect(scored.grade?.verdict).toBe('correct');
-      const diagram = player(page).getByTestId('musical-diagram');
-      await expect(diagram).toHaveAttribute('data-diagram-kind', scenario.diagram);
+      const diagram = player(page).getByTestId(
+        scenario.diagram === 'piano' ? 'piano-diagram' : 'musical-diagram',
+      );
+      if (scenario.diagram !== 'piano')
+        await expect(diagram).toHaveAttribute('data-diagram-kind', scenario.diagram);
       await expect(diagram).toHaveAttribute('data-example-id', exercise.id);
-      const notes = await diagram
-        .locator('[data-note-midi]')
-        .evaluateAll((nodes) => nodes.map((node) => Number(node.getAttribute('data-note-midi'))));
-      if (scenario.diagram !== 'degree')
+      if (scenario.diagram === 'piano') {
+        const notes = await diagram
+          .locator('[data-note-midi]')
+          .evaluateAll((nodes) =>
+            nodes.map((node) => Number(node.getAttribute('data-note-midi'))).sort((a, b) => a - b),
+          );
         expect(notes).toEqual(
-          exercise.audio.events
-            .filter((note) => note.role === 'exercise')
-            .sort((a, b) => a.at - b.at || a.midi - b.midi)
-            .map((note) => note.midi),
+          [
+            ...new Set(
+              exercise.audio.events
+                .filter((note) => note.role === 'exercise')
+                .map((note) => note.midi),
+            ),
+          ].sort((a, b) => a - b),
         );
+      } else if (width > 320) {
+        await expect(diagram.getByTestId('music-notation').locator('svg')).toBeVisible();
+        expect(await page.evaluate(() => document.fonts.check('40px Bravura'))).toBe(true);
+      }
       await expect(player(page).getByRole('region', { name: 'Pass condition' })).toContainText(
         '8/10',
       );
@@ -249,14 +269,12 @@ for (const width of [1440, 390, 320]) {
       const mark = page.getByRole('button', { name: 'Review answer 1: Correct', exact: true });
       await mark.click();
       const review = page.getByRole('dialog', { name: 'Answer review', exact: true });
-      await expect(review.getByTestId('musical-diagram')).toHaveAttribute(
-        'data-diagram-kind',
-        scenario.diagram,
+      const reviewGraphic = review.getByTestId(
+        scenario.diagram === 'piano' ? 'piano-diagram' : 'musical-diagram',
       );
-      await expect(review.getByTestId('musical-diagram')).toHaveAttribute(
-        'data-example-id',
-        exercise.id,
-      );
+      if (scenario.diagram !== 'piano')
+        await expect(reviewGraphic).toHaveAttribute('data-diagram-kind', scenario.diagram);
+      await expect(reviewGraphic).toHaveAttribute('data-example-id', exercise.id);
       const replay = page.waitForResponse(
         (response) =>
           response.url().endsWith('/api/tools') &&
@@ -298,7 +316,7 @@ test('later tutorials share the same meaningful display while core inversions re
     'progression',
   );
   await expect(player(page).getByTestId('piano-diagram')).toHaveCount(0);
-  await expect(player(page).locator('[data-chord-function]')).toHaveCount(4);
+  await expect(player(page).getByTestId('music-notation').locator('svg')).toBeVisible();
   expect((await engine.game.snapshot()).totalAnswers).toBe(0);
   await engine.game.execute({
     callId: randomUUID(),
@@ -342,9 +360,9 @@ test.describe('short touch-screen round result', () => {
     engine,
   }) => {
     await page.setViewportSize({ width: 320, height: 568 });
-    await pendingQuestion(engine, 'extensions', { quality: 'dominant13', format: 'compare' });
+    await pendingQuestion(engine, 'extensions', { quality: 'dominant9', format: 'compare' });
     const sessionId = (await engine.game.snapshot()).session!.id;
-    for (let index = 0; index < 10; index++) {
+    for (let index = 0; index < 8; index++) {
       const played = await engine.game.execute({
         callId: randomUUID(),
         sessionId,
@@ -364,7 +382,7 @@ test.describe('short touch-screen round result', () => {
     await expect(
       player(page).getByRole('heading', { name: 'Round passed', exact: true }),
     ).toBeInViewport({ ratio: 1 });
-    await expect(player(page).getByTestId('musical-diagram')).toBeInViewport({ ratio: 1 });
+    await expect(player(page).getByTestId('piano-diagram')).toBeInViewport({ ratio: 1 });
     const restart = player(page).getByRole('button', { name: 'Restart exercises', exact: true });
     const next = player(page).getByRole('button', { name: 'Next lesson', exact: true });
     await expect(restart).toBeInViewport({ ratio: 1 });

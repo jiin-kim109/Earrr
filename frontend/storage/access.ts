@@ -4,6 +4,7 @@ import { clearGuest, guestSave, writeGuest, pendingActions, recordPending } from
 import type { PendingGuestAction } from './guest.js';
 import type { Snapshot } from '../../server/types/agent.types.js';
 import { ApiError } from '../errors/api-error.js';
+import { Log } from '../lib/log.js';
 
 type Identity = { key: string; token?: string; guestToken?: string };
 let identity: Identity = { key: 'uninitialized' };
@@ -69,7 +70,12 @@ export async function unpack<T>(body: unknown, owner: string): Promise<T> {
 async function workspaceRequest(path: string, body: object, headers: Record<string, string> = {}) {
   const response = await fetch(`/api/workspaces/${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-earrr-client': '1', ...headers },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-earrr-client': '1',
+      ...Log.headers(),
+      ...headers,
+    },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(50_000),
   });
@@ -102,6 +108,7 @@ async function loadGuest(fresh: boolean): Promise<Snapshot> {
       headers: {
         'Content-Type': 'application/json',
         'x-earrr-client': '1',
+        ...Log.headers(),
         'x-earrr-guest': data.guestToken,
       },
       body: action.body,
@@ -116,7 +123,7 @@ async function loadGuest(fresh: boolean): Promise<Snapshot> {
     await journalComplete(action);
   }
   const latest = await fetch('/api/state', {
-    headers: { 'x-earrr-guest': data.guestToken, 'x-earrr-client': '1' },
+    headers: { 'x-earrr-guest': data.guestToken, 'x-earrr-client': '1', ...Log.headers() },
   });
   const loaded = await latest.json();
   if (!latest.ok) throw ApiError.response(loaded, latest.status);

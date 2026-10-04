@@ -6,7 +6,11 @@ import { Store } from '../server/db/database.js';
 import { defaultSettings } from '../server/repositories/user.repository.js';
 import { createExercise } from '../server/services/exercise/generator.js';
 import { exerciseFeedback, publicExercise } from '../server/services/exercise/exercise.service.js';
-import { exerciseDiagram, teachingDiagram } from '../server/services/exercise/diagrams.js';
+import {
+  chordFacts,
+  exerciseDiagram,
+  teachingDiagram,
+} from '../server/services/exercise/diagrams.js';
 import {
   chordFoundation,
   functionLabel,
@@ -42,8 +46,6 @@ describe('protected opening chapter', () => {
     ['pitch-direction', '1168380822f1b0966aacf3fabeff1f0c09e123c0b1dd108e6312da1794bbf873'],
     ['intervals-foundation', '75e0ec522631fa21f6a553ebc8dd0804a12da2beb827f74a555dfab076a0503a'],
     ['intervals-harmonic', '34a4deefd579439a6638e98cab4d875d518232e7ec6e949b4efb30ffb6924908'],
-    ['intervals-chromatic', '3b6cea3fd6c5fe5b999cb97d97c7ffb9f324ab9392899b6569170ba704b7065e'],
-    ['reference-pitch', 'fc243ad099e5e47d981b89728aea09e725d76857fb4325cc6fb864fc77b3b311'],
   ] satisfies Array<[SkillId, string]>)(
     'keeps %s questions, audio, tutorials and round allocations byte-identical',
     (skillId, fingerprint) => {
@@ -81,7 +83,7 @@ describe('protected opening chapter', () => {
 });
 
 describe('task-led practice', () => {
-  it.each(['melodies', 'progressions', 'jazz-progressions'] as const)(
+  it.each(['melodies', 'jazz-progressions'] as const)(
     'balances complete and recall tasks in each %s round',
     (skillId) => {
       for (let round = 1; round < 10; round++) {
@@ -119,7 +121,8 @@ describe('task-led practice', () => {
             expect(visible.question.labels[index]).toBe(
               exercise.kind === 'melody' ? String(degree) : functionLabel(degree),
             );
-        expect(JSON.stringify(visible.question)).not.toMatch(/"midi"|"notes"|"diagram"|"expected"/);
+        expect(visible.question.notation?.[gap] ?? null).toBeNull();
+        expect(JSON.stringify(visible.question)).not.toMatch(/"midi"|"diagram"|"expected"/);
         expect(gradeAnswer(exercise, { degree: sequence[gap] }).verdict).toBe('correct');
         expect(
           gradeAnswer(
@@ -134,7 +137,7 @@ describe('task-led practice', () => {
         const parsed = parseSoloAnswer(String(sequence[gap]), exercise);
         expect(parsed).toEqual({ degree: sequence[gap] });
         expect(exercise.cue).toContain(`missing ${exercise.kind === 'melody' ? 'note' : 'chord'}`);
-        expect(exercise.cue).toContain(`${gap + 1}'s scale degree`);
+        expect(exercise.cue).toContain('missing');
       }
     },
   );
@@ -214,20 +217,19 @@ describe('musically faithful displays', () => {
   );
 
   it('distinguishes altered fifths from upper colors rather than flattening them into one piano shape', () => {
-    const flat5 = exerciseDiagram(make('altered-dominants', { root: 0, quality: '7b5' }));
-    const sharp11 = exerciseDiagram(make('altered-dominants', { root: 0, quality: '7#11' }));
-    expect(flat5?.kind).toBe('chord');
-    expect(sharp11?.kind).toBe('chord');
-    if (flat5?.kind !== 'chord' || sharp11?.kind !== 'chord')
-      throw new Error('Invalid chord fixture.');
-    expect(flat5.tones.map((tone) => tone.degree)).toContain('b5');
-    expect(flat5.tones.map((tone) => tone.degree)).not.toContain('5');
-    expect(sharp11.tones.map((tone) => tone.degree)).toEqual(expect.arrayContaining(['5', '#11']));
-    expect(sharp11.tones.find((tone) => tone.degree === '#11')?.color).toBe(true);
+    const flat5 = make('altered-fifths', { root: 0, quality: '7b5' });
+    const sharp11 = make('upper-alterations', { root: 0, quality: '7#11' });
+    const flat = chordFacts(flat5.audio, (flat5.register + 1) * 12, '7b5');
+    const upper = chordFacts(sharp11.audio, (sharp11.register + 1) * 12, '7#11');
+    expect(flat.symbol).toBe('C7b5');
+    expect(upper.symbol).toBe('C7#11');
+    expect(flat.notes.some((note) => /^Gb/.test(note))).toBe(true);
+    expect(upper.notes.some((note) => /^F#/.test(note))).toBe(true);
+    expect(upper.notes.some((note) => /^G\d/.test(note))).toBe(true);
   });
 
   it('keeps an older unanswered sequence intact while adding only safe masks and deriving later review graphics', () => {
-    const old = make('progressions', { length: 4 });
+    const old = make('jazz-progressions', { length: 4 });
     expect(old).not.toHaveProperty('task');
     expect(old.required).toEqual(['progression']);
     const view = publicExercise(old);

@@ -6,14 +6,15 @@ import { Store } from '../server/db/database.js';
 import { AgentService } from '../server/services/agent/agent.service.js';
 import { settingsSchema } from '../shared/schemas/user.js';
 
-describe('one speaker volume and two sampled instruments', () => {
-  it('rejects removed sound options and preserves zero as a master volume', async () => {
+describe('independent tutor/instrument volumes and two sampled instruments', () => {
+  it('rejects removed sound options and preserves independent mute values', async () => {
     const store = await Store.open(':memory:');
     try {
       expect(Object.keys(await store.user.getSettings()).sort()).toEqual([
         'instrument',
         'timezone',
         'voice',
+        'voiceVolume',
         'volume',
       ]);
       for (const instrument of ['sine', 'felt', 'electric'])
@@ -26,6 +27,10 @@ describe('one speaker volume and two sampled instruments', () => {
       ).toBe(false);
       await store.user.saveSettings({ ...(await store.user.getSettings()), volume: 0 });
       expect((await store.user.getSettings()).volume).toBe(0);
+      expect((await store.user.getSettings()).voiceVolume).toBe(0.8);
+      await store.user.saveSettings({ ...(await store.user.getSettings()), voiceVolume: 0.25 });
+      expect((await store.user.getSettings()).volume).toBe(0);
+      expect((await store.user.getSettings()).voiceVolume).toBe(0.25);
     } finally {
       await store.close();
     }
@@ -109,6 +114,7 @@ describe('one speaker volume and two sampled instruments', () => {
       expect((await agent.snapshot()).settings).toEqual({
         instrument: 'piano',
         volume: 0.45,
+        voiceVolume: 0.45,
         voice: 'sage',
         timezone: 'UTC',
       });

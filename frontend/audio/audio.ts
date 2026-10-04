@@ -41,6 +41,7 @@ export class AudioEngine {
   private sentinel: AudioBufferSourceNode | null = null;
   private completion: ((completed: boolean) => void) | null = null;
   private volume = 0.8;
+  private voiceVolume = 0.8;
   private readonly samples = new Float32Array(256);
   private generation = 0;
   private voiceGeneration = 0;
@@ -57,7 +58,7 @@ export class AudioEngine {
       element.autoplay = true;
       element.setAttribute('playsinline', '');
       element.hidden = true;
-      element.volume = this.volume;
+      element.volume = this.voiceVolume;
       document.body.appendChild(element);
       this.voiceElement = element;
     }
@@ -107,6 +108,10 @@ export class AudioEngine {
   setVolume(volume: number) {
     this.volume = volume;
     if (this.context) this.musicGain?.gain.setTargetAtTime(volume, this.context.currentTime, 0.025);
+  }
+
+  setVoiceVolume(volume: number) {
+    this.voiceVolume = volume;
     if (this.voiceElement) this.voiceElement.volume = volume;
   }
 
@@ -119,7 +124,7 @@ export class AudioEngine {
     element.removeAttribute('src');
     element.srcObject = stream;
     element.muted = false;
-    element.volume = this.volume;
+    element.volume = this.voiceVolume;
     this.voiceSource = this.context.createMediaStreamSource(stream);
     this.voiceAnalyser = this.context.createAnalyser();
     this.voiceAnalyser.fftSize = 512;

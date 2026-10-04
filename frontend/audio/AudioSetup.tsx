@@ -15,7 +15,7 @@ export function AudioSetup({
   defaults,
 }: {
   onStart: () => void;
-  defaults: Pick<Settings, 'instrument' | 'volume'>;
+  defaults: Pick<Settings, 'instrument' | 'volume' | 'voiceVolume'>;
 }) {
   const state = useStudio();
   const settings = state.snapshot?.settings ?? defaults;
@@ -64,7 +64,11 @@ export function AudioSetup({
           className="mx-auto w-full max-w-[430px] space-y-5"
         >
           <MicrophoneSettings />
-          <SpeakerSettings volume={settings.volume} pending={pending} />
+          <SpeakerSettings
+            volume={settings.volume}
+            voiceVolume={settings.voiceVolume}
+            pending={pending}
+          />
           <AudioNotice surface="setup" />
           <InlineError />
           {!state.snapshot && state.error && !state.loading && !state.busy && (

@@ -142,18 +142,19 @@ try {
   let page = await open();
   await page.addInitScript(() => {
     const native = indexedDB.open.bind(indexedDB);
-    let denied = false;
     indexedDB.open = (...args: Parameters<IDBFactory['open']>) => {
-      if (!denied) {
-        denied = true;
+      if (!sessionStorage.getItem('earrr:fixture-storage-denied')) {
+        sessionStorage.setItem('earrr:fixture-storage-denied', '1');
         throw new DOMException('Transient storage denial.', 'SecurityError');
       }
       return native(...args);
     };
   });
   await page.goto(origin);
-  await expect(page.getByText('Transient storage denial.', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(
+    page.getByRole('alertdialog', { name: 'Something went wrong', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
   await page.getByRole('button', { name: 'Practice offline', exact: true }).click();
   await expect(player(page)).toHaveAttribute('data-phase', 'listening');
   await page.getByLabel('Message', { exact: true }).fill('up');
@@ -227,13 +228,18 @@ try {
       (response) => response.url().endsWith('/api/tools') && response.ok(),
     );
     await page.getByRole('button', { name: 'Next question', exact: true }).click();
+    await expect(
+      page.getByRole('alertdialog', { name: 'Something went wrong', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await page.getByRole('button', { name: 'Practice offline', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Hear again', exact: true })).toBeVisible();
     await expect(player(page)).toHaveAttribute('data-phase', 'listening');
     const recovered: ApiEnvelope<ToolResult> = await (await liveRestore).json();
     questionId = recovered.data.snapshot.current!.id;
     expect(recovered.data.snapshot.totalAnswers).toBe(total);
     console.log(
-      'PASS a running guest restores its capability after a server restart without reloading',
+      'PASS explicit page refresh restores guest capability and replays its pending action after server restart',
     );
   }
 

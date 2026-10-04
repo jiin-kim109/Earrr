@@ -16,6 +16,7 @@ import type { Exercise, ExerciseTarget } from '../server/types/exercise.types.js
 import type { Snapshot, ToolResult } from '../server/types/agent.types.js';
 import type { SkillId } from '../shared/types/course.js';
 import { audioEvidenceScript } from '../tests/browser-audio.js';
+import { verifyLessonNavigation } from './verify-lesson-navigation.js';
 import {
   realtimeTraceScript,
   expectOneSpokenReply,
@@ -46,22 +47,22 @@ const cases: Array<{
 }> = [
   {
     skill: 'progressions',
-    target: { format: 'complete', length: 4 },
-    answer: (exercise) => `I think the missing chord is degree ${exercise.expected.degree}.`,
+    target: { format: 'complete', length: 4, gapCount: 2 },
+    answer: (exercise) =>
+      `I think the missing functions are ${exercise.expected.progression![1]} then ${exercise.expected.progression![2]}.`,
     kind: 'progression',
   },
   {
-    skill: 'melodies',
-    target: { format: 'complete', length: 4 },
-    answer: (exercise) =>
-      `The missing note is ${['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'][exercise.expected.degree! - 1]}.`,
-    kind: 'melody',
+    skill: 'cadences',
+    target: { format: 'complete', length: 3 },
+    answer: (exercise) => `The missing function is ${exercise.expected.degree}.`,
+    kind: 'progression',
   },
   {
     skill: 'extensions',
-    target: { format: 'compare', quality: 'dominant13' },
-    answer: () => 'The second chord is a dominant thirteenth.',
-    kind: 'chord',
+    target: { format: 'compare', quality: 'dominant9' },
+    answer: () => 'The second chord is a dominant ninth.',
+    kind: 'piano',
   },
   {
     skill: 'modes',
@@ -79,7 +80,7 @@ try {
   const game = await AgentService.create(store, true, config.deployment);
   for (const skill of skills) {
     await store.progress.completeLesson(skill.id, new Date().toISOString());
-    await store.progress.finishIntroduction(skill.id, 'skipped');
+    if (skill.id !== 'triads') await store.progress.finishIntroduction(skill.id, 'skipped');
   }
   await store.progress.finishIntroduction('welcome', 'finished');
   const sessionId = (
@@ -164,7 +165,7 @@ try {
   }
   if (!ready) throw new Error('The isolated native server did not start.');
   browser = await chromium.launch({ headless: true });
-  for (const item of cases) {
+  for (const item of process.argv.includes('--navigation-only') ? [] : cases) {
     const selected = await fetch(`${origin}/api/tools`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-earrr-client': '1' },
@@ -202,14 +203,9 @@ try {
     const scored: ToolResult = await (await response).json();
     expect(scored.grade?.verdict).toBe('correct');
     expect(scored.gradedExerciseId).toBe(exercise.id);
-    await expect(player.getByTestId('musical-diagram')).toHaveAttribute(
-      'data-diagram-kind',
-      item.kind,
-    );
-    await expect(player.getByTestId('musical-diagram')).toHaveAttribute(
-      'data-example-id',
-      exercise.id,
-    );
+    const figure = player.getByTestId(item.kind === 'piano' ? 'piano-diagram' : 'musical-diagram');
+    if (item.kind !== 'piano') await expect(figure).toHaveAttribute('data-diagram-kind', item.kind);
+    await expect(figure).toHaveAttribute('data-example-id', exercise.id);
     await expectOneSpokenReply(
       page,
       marker,
@@ -231,6 +227,7 @@ try {
       `PASS native ${item.skill} format, spoken feedback and next-question handoff; no production progress touched.`,
     );
   }
+  await verifyLessonNavigation(browser, origin, sessionId);
 } finally {
   await browser?.close();
   if (server && server.exitCode === null) {

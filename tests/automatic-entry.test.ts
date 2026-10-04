@@ -20,6 +20,7 @@ vi.mock('../frontend/audio/audio.js', () => ({
     stop = vi.fn();
     detachVoice = vi.fn();
     setVolume = vi.fn();
+    setVoiceVolume = vi.fn();
     attachMicrophone = vi.fn();
     play = vi.fn(async () => true);
     unlock = vi.fn(async () => undefined);
@@ -165,17 +166,20 @@ describe('automatic section activation', () => {
     expect(state.getState().entering).toBe(false);
   });
 
-  it('retries a failed connection automatically with a bounded delay', async () => {
+  it('blocks with refresh-only recovery after one failed connection attempt', async () => {
     vi.useFakeTimers();
     controls.connect.mockRejectedValueOnce(new Error('Temporary network failure.'));
     const operation = studio.enterSection();
     await vi.waitFor(() => expect(controls.connect).toHaveBeenCalledOnce());
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(30_000);
     await operation;
-    expect(controls.connect).toHaveBeenCalledTimes(2);
-    expect(state.getState().connection).toBe('connected');
+    expect(controls.connect).toHaveBeenCalledOnce();
+    expect(state.getState().connection).toBe('error');
+    expect(state.getState().fatalError).toMatchObject({ code: 'unexpected_error' });
     expect(state.getState().error).toBeNull();
     expect(state.getState().entering).toBe(false);
+    await studio.enterSection();
+    expect(controls.connect).toHaveBeenCalledOnce();
   });
 
   it('does not reconnect the old account after the identity changes during retry', async () => {

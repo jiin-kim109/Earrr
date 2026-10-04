@@ -21,8 +21,17 @@ import { RealtimeConnection } from '../coach/realtime.js';
 import { Conversation } from '../coach/conversation.js';
 import { account } from '../auth/auth.js';
 import { useAuth } from '../auth/store.js';
+import { Log } from '../lib/log.js';
+import { ApiError } from '../errors/api-error.js';
+import { isFatalError, onFatalError } from '../errors/failure.js';
 import type { Session } from '@supabase/supabase-js';
-import { restoreAccount, restoreGuest, waitForSaves, scope } from '../storage/access.js';
+import {
+  credentials,
+  restoreAccount,
+  restoreGuest,
+  waitForSaves,
+  scope,
+} from '../storage/access.js';
 
 interface SectionEntry {
   focus?: SkillId;
@@ -44,7 +53,6 @@ class Studio {
   private previewRequest = 0;
   private microphonePermissionRequest: Promise<void> | null = null;
   private starting: Promise<ToolResult> | null = null;
-  private reconnecting = false;
   private entryController: AbortController | null = null;
   private entryOperation: Promise<void> | null = null;
   private messageTime = 0;
@@ -76,7 +84,7 @@ class Studio {
       void this.refreshDevices();
     },
     disconnected: (message) => {
-      void this.recover(message);
+      this.fail(new Error(message));
     },
   });
   private readonly conversation = new Conversation(this.transport, {
@@ -89,6 +97,7 @@ class Studio {
         return await callAgentTool(name, args, this.state.snapshot?.session?.id, callId);
       } catch (error) {
         if (name === 'start_round') this.patch({ restartingRound: false });
+        if (isFatalError(error)) this.fail(error);
         throw error;
       }
     },
@@ -97,24 +106,47 @@ class Studio {
     phase: (phase) => this.patch({ phase, ...(phase === 'hearing' ? { answerReveal: null } : {}) }),
     message: (role, text, id, complete, interrupted) =>
       this.message(role, text, id, complete, interrupted),
-    error: (error) =>
-      this.patch({
-        error,
-        phase: this.state.snapshot?.session?.status === 'paused' ? 'paused' : 'listening',
-      }),
+    error: (error) => this.reportError(error instanceof Error ? error : new Error(String(error))),
   });
 
+  constructor() {
+    onFatalError((error) => this.fail(error));
+  }
   getSnapshot = studioStore.getState;
   private patch(update: Partial<StudioState>) {
     studioStore.setState(update);
   }
   reportError(error: unknown) {
+    if (isFatalError(error)) {
+      this.fail(error);
+      return;
+    }
+    Log.error('app.action_failed', error);
     this.patch({
       error: error instanceof Error ? error.message : 'This action could not be completed.',
     });
   }
   dismissError() {
     this.patch({ error: null, notice: null });
+  }
+  fail(error: unknown) {
+    if (this.state.fatalError || (error instanceof DOMException && error.name === 'AbortError'))
+      return;
+    Log.error('app.fatal', error, { connection: this.state.connection, phase: this.state.phase });
+    this.cancelEntry();
+    ++this.generation;
+    this.disconnect();
+    this.stopMicrophonePreview();
+    this.patch({
+      fatalError: { code: error instanceof ApiError ? error.code : 'unexpected_error' },
+      connection: 'error',
+      busy: false,
+      loading: false,
+      entering: false,
+      restartingRound: false,
+      error: null,
+    });
+    void Log.flush();
   }
   private audioSurface(): AudioNoticeSurface {
     return this.state.setupOpen ? 'setup' : 'lesson';
@@ -137,6 +169,7 @@ class Studio {
     this.patch({ audioNotices: { ...this.state.audioNotices, [surface]: null } });
   }
   initialize(): Promise<boolean> {
+    if (this.state.fatalError) return Promise.resolve(false);
     if (this.initialization) return this.initialization;
     if (this.identityOperation)
       return this.identityOperation.then(() =>
@@ -155,6 +188,24 @@ class Studio {
     const generation = this.generation;
     if (!this.initialized) {
       this.initialized = true;
+      Log.initialize({
+        session: () => this.state.snapshot?.session?.id ?? this.state.lastSession?.id ?? null,
+        access: () => {
+          const current = credentials();
+          return { identity: current.identity, headers: current.headers };
+        },
+      });
+      window.addEventListener('error', (event) => {
+        if (event.error) this.fail(event.error);
+      });
+      window.addEventListener('unhandledrejection', (event) => {
+        if (!(event.reason instanceof DOMException && event.reason.name === 'AbortError'))
+          this.fail(event.reason);
+      });
+      window.addEventListener('offline', () => {
+        if (this.state.connection === 'connected' || this.state.busy)
+          this.fail(ApiError.unreachable());
+      });
       window.addEventListener('pagehide', () => {
         this.cancelEntry();
         ++this.generation;
@@ -163,6 +214,7 @@ class Studio {
         this.patch({ busy: false, loading: false, setupOpen: true, setupComplete: false });
       });
       const resumeAudio = () => {
+        if (this.state.fatalError) return;
         void this.audio
           .resumeOnGesture()
           .then(async () => {
@@ -176,10 +228,6 @@ class Studio {
       };
       window.addEventListener('pointerdown', resumeAudio);
       window.addEventListener('keydown', resumeAudio);
-      window.addEventListener('online', () => {
-        if (this.state.connection === 'error' && this.state.snapshot?.session?.status === 'active')
-          void this.enterSection();
-      });
       navigator.mediaDevices?.addEventListener('devicechange', () => {
         void this.refreshDevices();
       });
@@ -214,6 +262,10 @@ class Studio {
       this.patch({ curriculum });
       this.applySnapshot(snapshot);
       this.patch({ loading: false, error: null, setupOpen: true, setupComplete: false });
+      Log.event('app.ready', {
+        authenticated: Boolean(session),
+        lessonId: snapshot.course.selectedLesson,
+      });
       if (session) account.completedGuestTransfer();
       return true;
     } catch (error) {
@@ -286,6 +338,7 @@ class Studio {
     }
   }
   async refresh() {
+    if (this.state.fatalError) return;
     if (!this.state.snapshot) {
       this.patch({ loading: true, error: null });
       await this.initialize();
@@ -305,11 +358,13 @@ class Studio {
     }
   }
   private applySnapshot(snapshot: Snapshot) {
+    if (this.state.fatalError) return;
     const nextId = snapshot.session?.id;
     const changedLesson =
       nextId !== this.state.snapshot?.session?.id ||
       snapshot.course.selectedLesson !== this.state.snapshot?.course.selectedLesson;
     this.audio.setVolume(snapshot.settings.volume);
+    this.audio.setVoiceVolume(snapshot.settings.voiceVolume ?? snapshot.settings.volume);
     const messages = new Map(
       [...(snapshot.transcript ?? []), ...this.state.messages].map((message) => [
         message.id,
@@ -350,9 +405,14 @@ class Studio {
     const surface = this.audioSurface();
     const previous = this.state.snapshot?.settings;
     if (!previous || !this.state.snapshot) return false;
-    const settings = { ...previous, ...updates };
+    const settings = {
+      ...previous,
+      voiceVolume: previous.voiceVolume ?? previous.volume,
+      ...updates,
+    };
     const version = ++this.settingsVersion;
     this.audio.setVolume(settings.volume);
+    this.audio.setVoiceVolume(settings.voiceVolume);
     this.patch({ snapshot: { ...this.state.snapshot, settings } });
     let success = false;
     this.settingsQueue = this.settingsQueue.then(async () => {
@@ -365,6 +425,7 @@ class Studio {
         if (version === this.settingsVersion && this.state.snapshot) {
           this.patch({ snapshot: { ...this.state.snapshot, settings: previous } });
           this.audio.setVolume(previous.volume);
+          this.audio.setVoiceVolume(previous.voiceVolume ?? previous.volume);
         }
         this.reportAudioError(error, surface);
       }
@@ -394,7 +455,11 @@ class Studio {
     }
   }
   async startTraining(loadView: () => Promise<void>) {
-    if (this.state.busy) return;
+    if (this.state.busy || this.state.fatalError) return;
+    Log.event('training.start_clicked', {
+      mode: this.state.snapshot?.session?.mode,
+      microphone: this.state.previewingMicrophone,
+    });
     const generation = this.generation;
     const input = this.state.previewingMicrophone || this.state.hasMicrophone ? 'voice' : 'text';
     this.previewGeneration++;
@@ -454,12 +519,15 @@ class Studio {
       this.patch({ speakerDevice: selected });
       this.dismissAudioNotice(surface);
       this.remember('speaker', selected);
+      Log.event('audio.output_selected', { systemDefault: selected === '' });
       void this.refreshDevices();
     } catch (error) {
       this.reportAudioError(error, surface);
     }
   }
   async chooseMicrophone(microphoneDevice: string) {
+    if (this.state.fatalError) return;
+    Log.event('audio.input_selected', { enabled: microphoneDevice !== 'none' });
     this.patch({ microphoneDevice, microphoneError: null });
     this.remember('microphone', microphoneDevice);
     if (microphoneDevice === 'none') {
@@ -483,6 +551,11 @@ class Studio {
     } else if (this.state.setupOpen) await this.previewMicrophone();
   }
   private microphoneError(error: unknown) {
+    Log.event(
+      'audio.input_failed',
+      { code: error instanceof Error ? error.name : 'UnknownError' },
+      { level: 'warn' },
+    );
     const message =
       error instanceof DOMException && error.name === 'NotAllowedError'
         ? 'Microphone access was denied. Allow it in your browser to enable voice input.'
@@ -632,7 +705,7 @@ class Studio {
     tutorial?: { discardRoundId: string | null },
     welcome = false,
   ) {
-    if (this.state.busy || this.state.loading) return;
+    if (this.state.busy || this.state.loading || this.state.fatalError) return;
     if (!this.state.setupComplete) {
       this.patch({ setupOpen: true });
       return;
@@ -720,6 +793,7 @@ class Studio {
   enterSection(options: SectionEntry = {}): Promise<void> {
     if (this.entryOperation) return this.entryOperation;
     if (
+      this.state.fatalError ||
       !this.state.snapshot ||
       this.state.loading ||
       this.state.busy ||
@@ -743,13 +817,14 @@ class Studio {
     const active = () =>
       !controller.signal.aborted &&
       scope() === owner &&
+      !this.state.fatalError &&
       !this.state.setupOpen &&
       !useAuth.getState().view &&
       !useAuth.getState().busy;
     const run = async () => {
       this.patch({ entering: true });
       try {
-        for (let attempt = 0; attempt < 3 && active(); attempt++) {
+        if (active()) {
           const current = this.state.snapshot?.session;
           if (mode === 'solo' && current?.mode === 'solo' && !targeted) {
             if (current.status === 'paused') {
@@ -773,18 +848,6 @@ class Studio {
             options.tutorial,
             Boolean(options.welcome),
           );
-          if (!active() || mode === 'solo' || this.transport.connected) return;
-          if (attempt < 2)
-            await new Promise<void>((done) => {
-              const finish = () => {
-                clearTimeout(timer);
-                controller.signal.removeEventListener('abort', finish);
-                done();
-              };
-              const timer = setTimeout(finish, 1000 * 2 ** attempt);
-              controller.signal.addEventListener('abort', finish, { once: true });
-              if (controller.signal.aborted) finish();
-            });
         }
       } catch (error) {
         if (active()) this.reportError(error);
@@ -803,11 +866,13 @@ class Studio {
     return operation;
   }
   private async connect(sessionId: string, input: 'voice' | 'text', generation: number) {
+    Log.event('realtime.connect_started', { sessionId, input });
     this.conversation.reset();
     this.patch({ connection: 'connecting', phase: 'connecting' });
     await this.transport.connect(sessionId);
     if (generation !== this.generation) return;
     this.patch({ connection: 'connected', phase: 'thinking', busy: false, setupOpen: false });
+    Log.event('realtime.connected', { sessionId, input });
     this.conversation.start();
     if (input === 'voice') void this.toggleMicrophone();
   }
@@ -839,25 +904,6 @@ class Studio {
         this.patch({ voiceBlocked: true });
         this.reportAudioError(error, surface);
       }
-    }
-  }
-  async reconnect(input?: 'voice' | 'text') {
-    const session = this.state.snapshot?.session;
-    if (!session || session.mode !== 'coach' || this.state.busy) return;
-    const wantVoice = input ?? (this.state.microphoneDevice === 'none' ? 'text' : 'voice');
-    this.disconnect();
-    await this.start('coach', wantVoice);
-  }
-  private async recover(message: string) {
-    if (this.reconnecting || !this.state.snapshot?.session || this.state.connection !== 'connected')
-      return;
-    this.reconnecting = true;
-    this.patch({ error: message });
-    try {
-      this.disconnect();
-      await this.enterSection({ mode: 'coach' });
-    } finally {
-      this.reconnecting = false;
     }
   }
   private disconnect() {
@@ -932,12 +978,17 @@ class Studio {
 
   async send(text: string): Promise<boolean> {
     const session = this.state.snapshot?.session;
-    if (!session || !text.trim()) return false;
+    if (!session || !text.trim() || this.state.fatalError) return false;
+    Log.event('input.submitted', {
+      input: 'text',
+      characters: text.trim().length,
+      mode: session.mode,
+    });
     this.patch({ error: null, answerReveal: null });
     if (session.mode === 'coach') {
       if (!this.transport.connected) {
-        await this.enterSection({ mode: 'coach' });
-        if (!this.transport.connected) return false;
+        this.fail(new Error('The coach connection is not available.'));
+        return false;
       }
       this.conversation.text(text.trim());
       return true;
@@ -947,9 +998,11 @@ class Studio {
         this.patch({ notice: 'Play the next question before answering.' });
         return false;
       }
-      this.soloTurn++;
+      const turn = ++this.soloTurn;
+      const generation = this.generation;
       this.audio.stop();
       const callId = crypto.randomUUID();
+      this.message('user', text.trim(), `solo-user:${callId}`, true);
       try {
         const result = await api<ToolResult>('/solo/answer', {
           method: 'POST',
@@ -960,9 +1013,13 @@ class Studio {
             text: text.trim(),
           }),
         });
-        if (this.state.snapshot?.session?.id !== session.id) return false;
+        if (
+          turn !== this.soloTurn ||
+          generation !== this.generation ||
+          this.state.snapshot?.session?.id !== session.id
+        )
+          return false;
         this.applyResult(result);
-        this.message('user', text.trim(), `solo-user:${callId}`, true);
         this.message(
           'assistant',
           result.grade?.feedback ?? result.message,
@@ -977,6 +1034,11 @@ class Studio {
     }
   }
   async action(name: ToolName, args: Record<string, unknown> = {}) {
+    if (this.state.fatalError) return;
+    Log.event('action.requested', {
+      action: name,
+      lessonId: this.state.snapshot?.course.selectedLesson,
+    });
     if (name === 'pause_session' || name === 'end_session') this.cancelEntry();
     const session = this.state.snapshot?.session;
     if (!session) return;
@@ -987,17 +1049,22 @@ class Studio {
     else await this.soloAction(name, args);
   }
   async focus(skillId: SkillId) {
+    if (this.state.fatalError) return;
+    Log.event('lesson.selected', {
+      lessonId: skillId,
+      previousLessonId: this.state.snapshot?.course.selectedLesson,
+    });
     this.cancelEntry();
     if (this.state.connection === 'connected') {
       await this.action('select_lesson', { skillId });
       return;
     }
-    this.soloTurn++;
+    const turn = ++this.soloTurn;
     this.audio.stop();
     try {
-      this.applySnapshot(
-        (await callTool('select_lesson', { skillId }, this.state.snapshot?.session?.id)).snapshot,
-      );
+      const result = await callTool('select_lesson', { skillId }, this.state.snapshot?.session?.id);
+      if (turn !== this.soloTurn) return;
+      this.applySnapshot(result.snapshot);
       await this.enterSection({ focus: skillId });
     } catch (error) {
       this.reportError(error);
@@ -1007,7 +1074,8 @@ class Studio {
     await this.action('start_practice');
   }
   async welcome() {
-    if (this.state.busy || this.state.loading) return;
+    if (this.state.busy || this.state.loading || this.state.fatalError) return;
+    Log.event('lesson.selected', { lessonId: 'welcome' });
     this.cancelEntry();
     if (this.state.connection === 'connected') {
       await this.action('show_welcome');
@@ -1068,6 +1136,12 @@ class Studio {
   }
   private async play(plan: AudioPlan, sessionId: string, exerciseId?: string, replay = false) {
     const playback = ++this.playbackGeneration;
+    Log.event('audio.started', {
+      questionId: exerciseId,
+      replay,
+      instrument: plan.instrument,
+      durationSeconds: plan.duration,
+    });
     this.patch({
       phase: 'playing',
       musicPlayback: { exerciseId, replay },
@@ -1080,6 +1154,7 @@ class Studio {
             this.reportError(error),
           );
       });
+      Log.event('audio.finished', { questionId: exerciseId, replay, completed: finished });
       if (playback === this.playbackGeneration && finished && this.state.phase === 'playing')
         this.patch({ phase: 'listening' });
       return finished;
@@ -1091,7 +1166,7 @@ class Studio {
     result: ToolResult | null,
     isCurrent: () => boolean,
   ): Promise<ToolResult | null> {
-    if (!result) return null;
+    if (!result || this.state.fatalError) return null;
     if (result.endConversation) {
       this.cancelEntry();
       this.disconnect();
@@ -1128,6 +1203,7 @@ class Studio {
     complete: boolean,
     interrupted = false,
   ) {
+    if (this.state.fatalError) return;
     const sessionId = this.state.snapshot?.session?.id ?? this.state.lastSession?.id;
     if (!sessionId || !text.trim()) return;
     if (role === 'user' && !complete && text !== 'Listening…') {
@@ -1135,6 +1211,8 @@ class Studio {
       this.captionDeltas.set(id, text);
     }
     if (complete) this.captionDeltas.delete(id);
+    if (role === 'user' && complete && id.startsWith('user:'))
+      Log.event('input.submitted', { input: 'voice', characters: text.length });
     const previous = this.state.messages.find((message) => message.id === id);
     this.messageTime = Math.max(Date.now(), this.messageTime + 1);
     const message: Transcript = {

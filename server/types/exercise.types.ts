@@ -30,9 +30,9 @@ export interface Exercise {
   roundId?: string;
   roundTargetId?: string;
   task?:
-    | { kind: 'complete'; gapIndex: number }
+    | { kind: 'complete'; gapIndex: number; gapIndices?: number[] }
     | { kind: 'compare-chords'; referenceQuality: ChordQuality }
-    | { kind: 'compare-scale' };
+    | { kind: 'compare-scale'; referenceScale?: ScaleId };
 }
 
 export interface ExerciseTarget {
@@ -46,6 +46,7 @@ export interface ExerciseTarget {
   scale?: ScaleId;
   length?: number;
   format?: 'identify' | 'complete' | 'compare';
+  gapCount?: 1 | 2;
 }
 
 export type QuestionDisplay =
@@ -57,6 +58,8 @@ export type QuestionDisplay =
       labels: Array<string | null>;
       onsets: number[];
       targetIndex?: number;
+      targetIndices?: number[];
+      notation?: Array<{ symbol: string; function: string; notes: string[] } | null>;
     }
   | {
       kind: 'comparison';
@@ -83,12 +86,14 @@ export type MusicalDiagram =
       points: Array<{ midi: number; note: string; label: string }>;
       gaps?: number[];
       targetIndex?: number;
+      targetIndices?: number[];
     }
   | {
       kind: 'progression';
       tonic: string;
       chords: Array<{ symbol: string; function: string; midi: number[]; notes: string[] }>;
       targetIndex?: number;
+      targetIndices?: number[];
     };
 
 export interface PublicExercise {
@@ -115,6 +120,7 @@ export interface PlayedExample {
   presentation: 'single' | 'ascending' | 'descending' | 'together' | 'repeated' | 'sequence';
   semitones?: number;
   diagram?: MusicalDiagram;
+  symbol?: string;
 }
 
 export interface TeachingProgress {
@@ -126,6 +132,8 @@ export interface TeachingProgress {
   delivered: boolean;
   lastDemoIndex: number | null;
   lastDemoStepId?: string | null;
+  exampleIndex?: number;
+  lastDemoExampleIndex?: number;
   autoContinue: boolean;
 }
 

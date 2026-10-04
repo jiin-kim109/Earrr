@@ -113,8 +113,10 @@ without excessive praise. The player is treated as a musician at every level.
     graphics: interactive keys/strings/frets at entry, display-only in the lesson's
     Audio settings popover. Its larger speaker icon sits in the white exercise
     card's upper-right corner and contains the same
-    speaker selector and master volume as entry, plus the preferred instrument.
-    Keep instrument preview geometry fixed. One speaker volume controls all output.
+    speaker selector and separate Tutor voice / Instrument sound volume controls
+    as entry, plus the preferred instrument. Keep instrument preview geometry fixed.
+    Preserve existing default output levels and independently persist both volumes.
+    Older single-volume saves initialize both channels from that saved value.
 19. The message composer has one microphone icon beside the input, opening a listed
     device selector. Speaker devices are also listed, not placed in a dropdown.
     Its fill follows microphone level; muted state uses a crossed
@@ -169,9 +171,10 @@ without excessive praise. The player is treated as a musician at every level.
     disabled appearance until the session is ready. Errors leave entry retryable.
 23. Use thin, softly colored native scrollbars rather than a custom JavaScript
     scrolling system. Keep wheel, touch, and keyboard scrolling behavior intact.
-24. Use non-overlapping ten-question rounds with a universal 8/10 rule. Allocate
+24. Use non-overlapping rounds of up to ten questions with a universal 8/10 rule. Allocate
     fixed counts of question types before shuffling their order; do not use hidden
-    diversity gates. End immediately at three misses, otherwise judge at ten.
+    diversity gates. End immediately at eight correct answers or three misses. Keep actual answered
+    counts and leave unasked positions unfilled; do not fabricate ten answers.
     Both outcomes clear the next tally and wait for explicit start_round consent.
     Keep the final graded musical display, note facts and filled answer marks visible while
     waiting. Use the ordinary grading layout with Round passed / Round not passed
@@ -229,11 +232,14 @@ without excessive praise. The player is treated as a musician at every level.
     unscored, never unlocks musical lessons or contributes to mastery, and preserves
     the exact parked lesson/round when revisited. Keep the existing explicit
     tutorial-to-exercise and completed-round/next-lesson choices.
-36. After explicit audio setup, enter and restore sections by automatically
-    reconnecting and resuming their saved session. Do not show a connection Cancel button, Reconnect/Resume
-    controls or a Paused player page. A small preparation spinner is allowed.
-    Keep errors explicit and cancel retries across account changes and intentional
-    session ending. Preserve conversational pause while remaining in the section.
+36. After explicit audio setup, enter the saved section with one connection attempt.
+    A disconnection, unreachable server, fatal API error or unexpected client error
+    stops audio/actions and blocks the app with a light full-screen blur and a
+    compact Something went wrong toast containing Refresh. Refresh reloads the page;
+    do not silently reconnect, retry expired guest capabilities, or resume on online
+    events. Preserve the mutation journal for reload recovery. Routine invalid
+    answers, form validation and microphone/speaker permission notices remain local
+    and nonfatal. Intentional pause/end does not trigger a failure overlay.
 37. Keep the browser tab title fixed to Earrr | Ear training game with a friendly
     AI tutor. for every surface, including account screens.
 38. Tutorial dots are an ungated step selector, not mastery or a completion
@@ -293,26 +299,77 @@ without excessive praise. The player is treated as a musician at every level.
     microphone/default/communications alias. Speaker selection does not request
     microphone access; use a browser-native speaker chooser only if the browser
     supports it and actually denies a requested output device.
-47. Welcome and the entire Pitch & intervals chapter keep their existing
-    questions, audio, demonstrations and piano presentation. Later sections use
-    the question format that serves the skill, not a forced graphic replacement.
-    Core triads, roots and inversions retain piano. Scale degrees use a tonal
-    degree rail; scales/modes reveal degree and semitone patterns; melodies reveal
-    a degree contour; progressions show separate chord symbols/functions/voicings;
-    seventh colors and advanced harmony reveal actual chord tones and upper colors.
-48. Melody and progression rounds mix five missing-position questions with five
-    whole-sequence recall questions. Modes, seventh colors, additions, extensions
-    and altered dominants mix four same-root reference comparisons with six
-    independent identifications. Keep the existing musical target allocations and
-    ten-question 8/10 rule. Each changing task and every given clue is spoken.
-    Missing positions are graded as one scale degree; complete spoken sequences
-    may also identify that position. Comparative questions grade only the second
-    chord/scale. Pending graphics show only declared clues, unknown slots or a
-    known reference, never hidden pitch/quality/contour information. A quiet
-    position highlight follows the actual music clock and respects reduced motion.
-    New formats apply to newly planned rounds; old saved questions keep their
-    original audio, required answers and grading. Tutorials and saved answer
-    review share the deterministic display without changing mastery.
+47. Welcome and the first three pitch/interval lessons retain their musical
+    content and piano presentation. Chromatic intervals and standalone reference
+    pitch are retired from the active course. Use small, explicit answer sets
+    after major/minor, usually two to four and never more than five new categories.
+    Inversion questions supply the chord quality so the learner judges only the
+    bass position. Root naming uses C4 and five nearby roots in the same octave.
+48. Use 29 short lessons across nine chapters: pitch/intervals; chord colors;
+    scales/modes; roots/triad inversions; seventh chords; progressions; seventh
+    inversions; added tones/extensions; altered dominants. Introduce major/minor,
+    then diminished/augmented, then sus4 (five qualities total). Minor scales cover
+    natural, harmonic and ascending melodic minor only. Split major-family and
+    minor-family modes; omit pentatonic, blues, whole tone and melodic recall.
+    Seventh colors exclude minor-major seventh. Added ninths precede sixths,
+    ninths, minor elevenths and thirteenths; altered ninths, fifths and upper
+    alterations have separate two-choice lessons.
+51. Teach harmonic functions I/IV/V and ii/iii/vi before progression questions.
+    Introduce ii-V-I first, then a few short related paths. Every progression
+    supplies its beginning and ending; grade one or two missing inner functions,
+    never demand whole-sequence recall. Both single and complete spoken replies
+    can supply the requested missing positions. Speak all given clues.
+52. Scripted speech is scoped to the current presentation, not the complete
+    conversation. Teaching receives one explanation, without redundant visual
+    titles or labels; timing, silence and playback are application behavior, not
+    narration. Navigation invalidates old presentation epochs while allowing
+    already-committed grading to finish. Stale results cannot repaint the selected
+    lesson or narrate the previous exercise.
+53. The major/minor introduction has five steps. Its fourth step compares the
+    character of CM, Cm, EM and Em, each with its own explanation, audio and
+    changing piano. Mood is a useful listening clue, not a universal emotion rule.
+    Delivery advances examples inside that step before continuing to the final
+    practice invitation. Save and replay the actual example position.
+54. Use clean piano diagrams and prominent conventional symbols such as CM, Cm,
+    C7, C7b5 and Cadd9 for chords. Use VexFlow SVG engraving with locally bundled
+    Bravura for scales and progression notation, never approximate note-dot charts.
+    Unknown positions contain no pitch data. Use a single clef for scalar lines
+    and a grand staff only when chord voicings need it. Short screens may use a
+    compact symbol strip; full notation remains available in answer review.
+    Keep graphics inside their slot, above the independent voice visualizer.
+    Never draw an empty staff for an unknown-only question. A single unknown
+    harmonic function uses a centered tonic-reference/answer prompt; notation is
+    reserved for actual supplied or revealed pitches.
+55. Curriculum revision changes preserve recorded attempts and genuine completion.
+    Retired selections are mapped to active lessons; incompatible pending rounds
+    and tutorial positions are reintroduced rather than misgraded with new rules.
+    New lessons are not automatically marked complete. Companion rank milestones
+    scale with the number of active chapters and reserve the final rank for all.
+56. Use a single Supabase raw-event table for traffic, usage and reliability
+    analytics instead of Google Analytics. Keep essential dimensions in columns
+    and event-specific data in a JSON message. Client/server code shares the
+    Log.event(name, message, options) interface; visit, visitor, session, request,
+    verified actor, environment and release context are attached automatically.
+    Record lifecycle, screen, training, navigation, playback, grading, round,
+    authentication and failure events without raw chat, microphone audio, credentials
+    or direct identifiers. Only server-side service credentials can access the table.
+57. Logs have 30-day retention based on server receipt time, with an hourly purge.
+    This does not delete learning or conversation history. Keep logging small,
+    bounded and best-effort; delivery failure is explicit in diagnostic output but
+    must not block the app or recursively log itself. Do not add materialized
+    analytics tables, aggregation pipelines or a persistent client log cache.
+
+## Ear-training design references
+
+The course uses narrow contrast sets, tonal references and increasingly contextual
+harmonic listening rather than reproducing a semester-long dictation syllabus.
+Reference and endpoint clues reduce working-memory load while keeping the missing
+sound an aural judgment. Instruction precedes each newly tested distinction.
+
+- [Baylor, The Ear Training Compendium, harmonic dictation foundations](https://openbooks.library.baylor.edu/eartraining/chapter/unit-2-harmonic-dictation/): introduce tonal function through a small set of familiar root-position chords.
+- [TEORIA, chord dictation](https://www.teoria.com/en/exercises/ce.php) and [harmonic dictation](https://www.teoria.com/en/exercises/hp.php): isolate selectable chord families and provide key/reference support.
+- [Berklee, Harmonic Ear Training](https://online.berklee.edu/courses/harmonic-ear-training-recognizing-chord-progressions): connect chord vocabulary, tonal function and familiar progressions before advanced harmonic movement.
+- [VexFlow 5 engraving tutorial](https://vexflow.github.io/vexflow-examples/guides/tutorial/): use real staves, noteheads and accidentals instead of hand-drawn approximations.
 
 ## Accessibility & Inclusion
 

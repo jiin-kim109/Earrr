@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { api } from '../lib/api.js';
+import { Log } from '../lib/log.js';
 import type { Presentation } from '../../server/types/agent.types.js';
 
 export interface ResponseRequest {
   id: string;
   turn: number;
+  section?: number;
   tools: 'auto' | 'none' | 'play_exercise';
   presentation?: Presentation;
 }
@@ -69,7 +71,6 @@ export class RealtimeConnection {
   private sender: RTCRtpSender | null = null;
   private controller: AbortController | null = null;
   private intentionalClose = false;
-  private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private opened = false;
   private microphoneDeviceId = '';
   private microphoneRequest = 0;
@@ -98,22 +99,8 @@ export class RealtimeConnection {
       this.handlers.voice(event.streams[0] ?? new MediaStream([event.track]));
     peer.onconnectionstatechange = () => {
       if (this.intentionalClose) return;
-      if (peer.connectionState === 'connected' && this.disconnectTimer) {
-        clearTimeout(this.disconnectTimer);
-        this.disconnectTimer = null;
-      }
-      if (peer.connectionState === 'failed')
-        this.handlers.disconnected(
-          'The audio connection was lost. Your current question is saved.',
-        );
-      else if (peer.connectionState === 'disconnected' && !this.disconnectTimer) {
-        this.disconnectTimer = setTimeout(() => {
-          if (peer.connectionState === 'disconnected')
-            this.handlers.disconnected(
-              'The audio connection was interrupted. Your current question is saved.',
-            );
-        }, 5_000);
-      }
+      if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected')
+        this.handlers.disconnected('The audio connection was lost.');
     };
     const channel = peer.createDataChannel('earrr-events');
     this.channel = channel;
@@ -131,7 +118,7 @@ export class RealtimeConnection {
     };
     channel.onclose = () => {
       if (this.opened && !this.intentionalClose)
-        this.handlers.disconnected('The coach connection closed. Your practice is saved.');
+        this.handlers.disconnected('The coach connection closed.');
     };
     const ready = new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(
@@ -237,6 +224,12 @@ export class RealtimeConnection {
       stream.getTracks().forEach((item) => item.stop());
       throw new Error('The selected microphone has no audio track.');
     }
+    const settings = typeof track.getSettings === 'function' ? track.getSettings() : {};
+    Log.event('voice.input_configured', {
+      echoCancellation: settings.echoCancellation,
+      noiseSuppression: settings.noiseSuppression,
+      autoGainControl: settings.autoGainControl,
+    });
     track.onended = () => {
       if (
         !this.intentionalClose &&
@@ -347,8 +340,6 @@ export class RealtimeConnection {
   disconnect() {
     this.microphoneRequest++;
     this.intentionalClose = true;
-    if (this.disconnectTimer) clearTimeout(this.disconnectTimer);
-    this.disconnectTimer = null;
     this.controller?.abort();
     this.controller = null;
     if (this.channel) {

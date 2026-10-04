@@ -1,6 +1,14 @@
 import type { SkillId, CheckpointRule } from '../../../shared/types/course.js';
 import type { ExerciseTarget } from '../../types/exercise.types.js';
-import { chordPools, essentialIntervals, intervalLessons, scalePools } from './catalog.js';
+import {
+  chordPools,
+  essentialIntervals,
+  intervalLessons,
+  scalePools,
+  functionPools,
+  isInversionLesson,
+  isSeventhInversion,
+} from './catalog.js';
 import { seededRandom } from './music.js';
 import { comparisonSkills, completionSkills } from './tasks.js';
 
@@ -33,26 +41,31 @@ export function roundPlan(skillId: SkillId, round: number, seed: number): Exerci
     targets = (
       [
         'major',
+        'major',
+        'minor',
         'minor',
         'diminished',
         'diminished',
+        'diminished',
         'augmented',
         'augmented',
-        'sus2',
-        'sus2',
-        'sus4',
-        'sus4',
+        'augmented',
       ] as const
     ).map((quality) => ({ quality }));
   } else if (qualities) {
-    if (skillId === 'triad-inversions' || skillId === 'seventh-inversions') {
-      const positions = skillId === 'triad-inversions' ? 3 : 4;
+    if (isInversionLesson(skillId)) {
+      const positions = isSeventhInversion(skillId) ? 4 : 3;
       const combinations = Array.from({ length: positions }, (_, offset) =>
         qualities.map((quality, index) => ({ quality, inversion: (offset + index) % positions })),
       ).flat();
       targets = balanced(combinations, round);
     } else {
       targets = balanced(qualities, round).map((quality) => ({ quality }));
+    }
+    if (skillId === 'chord-roots') {
+      targets = [0, 2, 4, 5, 7].flatMap((root) =>
+        (['major', 'minor'] as const).map((quality) => ({ root, quality })),
+      );
     }
   } else {
     switch (skillId) {
@@ -66,7 +79,7 @@ export function roundPlan(skillId: SkillId, round: number, seed: number): Exerci
         ).map((root) => ({ root }));
         break;
       case 'scale-degrees':
-        targets = balanced([1, 2, 3, 4, 5, 6, 7], round).map((degree) => ({ degree }));
+        targets = balanced([1, 3, 5], round).map((degree) => ({ degree }));
         break;
       case 'intervals-harmonic':
         targets = balanced(essentialIntervals, round).map((interval) => ({
@@ -97,12 +110,32 @@ export function roundPlan(skillId: SkillId, round: number, seed: number): Exerci
       }
       case 'scales':
       case 'modes':
-        targets = balanced(scalePools[skillId], round).map((scale) => ({ scale }));
+      case 'minor-modes':
+        targets = balanced(scalePools[skillId]!, round).map((scale) => ({ scale }));
+        break;
+      case 'major-functions':
+      case 'minor-functions':
+        targets = balanced(functionPools[skillId]!, round).map((degree) => ({ degree }));
+        break;
+      case 'cadences':
+        targets = balanced([2, 4, 5, 6], round).map((degree) => ({
+          length: 3,
+          degree,
+          format: 'complete',
+          gapCount: 1,
+        }));
         break;
       case 'melodies':
-      case 'progressions':
       case 'jazz-progressions':
         targets = [3, 3, 3, 3, 4, 4, 4, 5, 5, 5].map((length) => ({ length }));
+        break;
+      case 'progressions':
+        targets = balanced([2, 4, 5, 6], round).map((degree, index) => ({
+          length: 4,
+          degree,
+          format: 'complete',
+          gapCount: index < 5 ? 1 : 2,
+        }));
         break;
       default:
         throw new Error(`No round composition exists for ${skillId}.`);

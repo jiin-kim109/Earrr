@@ -2,28 +2,43 @@ import { z } from 'zod';
 
 export const skillIds = [
   'pitch-direction',
-  'reference-pitch',
-  'scale-degrees',
   'intervals-foundation',
   'intervals-harmonic',
-  'intervals-chromatic',
-  'scales',
   'triads',
   'triad-colors',
-  'triad-inversions',
+  'suspended-chords',
+  'scale-degrees',
+  'scales',
+  'modes',
+  'minor-modes',
   'chord-roots',
+  'triad-inversions',
+  'minor-inversions',
   'seventh-chords',
   'seventh-colors',
-  'seventh-inversions',
-  'added-tones',
-  'extensions',
-  'altered-dominants',
-  'modes',
-  'melodies',
+  'major-functions',
+  'minor-functions',
+  'cadences',
   'progressions',
+  'seventh-inversions',
+  'seventh-color-inversions',
+  'added-tones',
+  'sixth-chords',
+  'extensions',
+  'elevenths',
+  'thirteenths',
+  'altered-dominants',
+  'altered-fifths',
+  'upper-alterations',
+] as const;
+export const retiredSkillIds = [
+  'intervals-chromatic',
+  'reference-pitch',
+  'melodies',
   'jazz-progressions',
 ] as const;
-export const skillIdSchema = z.enum(skillIds);
+export const skillIdSchema = z.enum([...skillIds, ...retiredSkillIds]);
+export const activeSkillIdSchema = z.enum(skillIds);
 
 export const chordQualities = [
   'major',

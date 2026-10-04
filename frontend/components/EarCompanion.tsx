@@ -7,7 +7,7 @@ const ranks = [
   { name: 'Rookie Ear', color: 'oklch(43% .012 80)' },
   { name: 'Pitch Scout', color: 'oklch(49% .065 70)' },
   { name: 'Chord Keeper', color: 'oklch(46% .04 245)' },
-  { name: 'Melody Weaver', color: 'oklch(46% .065 155)' },
+  { name: 'Tonal Explorer', color: 'oklch(46% .065 155)' },
   { name: 'Harmony Sage', color: 'oklch(48% .09 65)' },
   { name: 'Ear Master', color: 'oklch(46% .115 70)' },
 ] as const;
@@ -23,7 +23,13 @@ export function companionRank(curriculum: Curriculum, course: CourseState) {
       )
     );
   }).length;
-  const tier = Math.min(completed, ranks.length - 1);
+  const tier =
+    completed === curriculum.chapters.length
+      ? ranks.length - 1
+      : Math.min(
+          ranks.length - 2,
+          Math.ceil((completed * (ranks.length - 2)) / curriculum.chapters.length),
+        );
   return { ...ranks[tier]!, tier };
 }
 

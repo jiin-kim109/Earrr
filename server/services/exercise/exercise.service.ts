@@ -20,19 +20,21 @@ import type {
 import type { Session } from '../../types/session.types.js';
 import type { Attempt, AnswerReview } from '../../types/grading.types.js';
 import { intervalNoteNames, noteName } from './music.js';
-import { chapters, skills, welcome } from './catalog.js';
+import { chapters, skills, welcome, chordPools } from './catalog.js';
 import { checkpointDescription } from '../progress.service.js';
 import { roundRule } from './rounds.js';
 import type { ProgressService } from '../progress.service.js';
 import { lessonExamples, lessonNotes, teachingSteps } from './lessons.js';
 import { normalizeTaskAnswer, questionDisplay } from './tasks.js';
-import { exerciseDiagram, teachingDiagram } from './diagrams.js';
+import { chordFacts, exerciseDiagram, teachingDiagram } from './diagrams.js';
+import { chordQualities } from '../../../shared/schemas/course.js';
 
 export function newTeachingProgress(
   lessonId: SkillId,
   index = 0,
   lastDemoIndex: number | null = null,
   autoContinue = true,
+  lastDemoExampleIndex = 0,
 ): TeachingProgress {
   const steps = teachingSteps(lessonId, 'piano');
   if (!steps[index]) throw new Error('The requested tutorial position does not exist.');
@@ -44,6 +46,8 @@ export function newTeachingProgress(
     delivered: false,
     lastDemoIndex,
     lastDemoStepId: lastDemoIndex === null ? null : (steps[lastDemoIndex]?.id ?? null),
+    exampleIndex: 0,
+    lastDemoExampleIndex,
     autoContinue,
   };
 }
@@ -296,6 +300,7 @@ export class ExerciseService {
     const fingerprints = new Set(
       (await this.store.exercises.recent())
         .filter((exercise) => exercise.roundTargetId !== planned.targetId)
+        .filter((exercise) => skillId !== 'chord-roots' || exercise.roundId === planned.roundId)
         .slice(0, 8)
         .map(exerciseFingerprint),
     );
@@ -359,6 +364,15 @@ export class ExerciseService {
     const steps = await this.steps(progress.lessonId);
     const step = steps[progress.index];
     if (!step) throw new Error('The saved teaching step does not exist in this lesson.');
+    const segment = step.examples?.[progress.exampleIndex ?? 0];
+    if (step.examples && !segment) throw new Error('The saved teaching example does not exist.');
+    const audio = segment?.audio ?? step.audio;
+    const quality =
+      segment?.quality ??
+      (chordPools[progress.lessonId]
+        ? chordQualities.find((value) => step.id.startsWith(`${value}-`))
+        : undefined);
+    const facts = audio && quality ? chordFacts(audio, segment?.root ?? 60, quality) : undefined;
     const awaitingPractice = progress.index === steps.length - 1;
     const diagram = teachingDiagram(progress.lessonId, step);
 
@@ -369,11 +383,12 @@ export class ExerciseService {
       index: progress.index,
       total: steps.length,
       title: step.title,
-      narration: step.narration,
-      demoLabel: step.demoLabel ?? null,
-      example: step.audio
+      narration: segment?.narration ?? step.narration,
+      demoLabel: segment?.title ?? step.demoLabel ?? null,
+      example: audio
         ? {
-            ...describePlayedExample({ audio: step.audio }, 'all'),
+            ...describePlayedExample({ audio }, 'all'),
+            ...(facts ? facts : {}),
             ...(diagram ? { diagram } : {}),
           }
         : null,
@@ -396,12 +411,13 @@ export class ExerciseService {
       teaching.section === 'welcome'
         ? null
         : (await this.steps(teaching.lessonId))[teaching.index]!;
+    const audio = step?.examples?.[session.teaching?.exampleIndex ?? 0]?.audio ?? step?.audio;
     return {
       ok: true,
       reply: 'teaching',
       notice: { kind: 'teaching' },
       teaching,
-      ...(step?.audio ? { audio: step.audio } : {}),
+      ...(audio ? { audio } : {}),
     };
   }
 
@@ -472,7 +488,16 @@ export class ExerciseService {
 
     const updated = {
       ...session,
-      teaching: newTeachingProgress(progress.lessonId, index, progress.lastDemoIndex, false),
+      teaching: {
+        ...newTeachingProgress(
+          progress.lessonId,
+          index,
+          progress.lastDemoIndex,
+          false,
+          progress.lastDemoExampleIndex,
+        ),
+        exampleIndex: index === progress.lastDemoIndex ? (progress.lastDemoExampleIndex ?? 0) : 0,
+      },
     };
     await this.store.sessions.save(updated);
     const result = await this.presentTeaching(updated);
@@ -484,9 +509,25 @@ export class ExerciseService {
     if (session.phase !== 'teaching' || !progress || progress.presentationId !== presentationId) {
       throw AppError.create('stale_teaching_step');
     }
-    const lastIndex = (await this.steps(progress.lessonId)).length - 1;
+    const steps = await this.steps(progress.lessonId);
+    const lastIndex = steps.length - 1;
     if (!progress.delivered || progress.index === lastIndex)
       return await this.presentTeaching(session);
+    const examples = steps[progress.index]?.examples;
+    if (examples && (progress.exampleIndex ?? 0) + 1 < examples.length) {
+      const updated = {
+        ...session,
+        teaching: {
+          ...progress,
+          exampleIndex: (progress.exampleIndex ?? 0) + 1,
+          presentationId: randomUUID(),
+          delivered: false,
+          autoContinue: true,
+        },
+      };
+      await this.store.sessions.save(updated);
+      return this.presentTeaching(updated);
+    }
 
     const next = {
       ...session,
@@ -495,6 +536,7 @@ export class ExerciseService {
         progress.index + 1,
         progress.lastDemoIndex,
         progress.index + 1 < lastIndex,
+        progress.lastDemoExampleIndex,
       ),
     };
     await this.store.sessions.save(next);
@@ -519,14 +561,19 @@ export class ExerciseService {
       throw new Error('The saved teaching step does not exist in this lesson.');
     await this.store.sessions.save({
       ...session,
-      playedTutorialSteps: step
-        ? [...new Set([...(session.playedTutorialSteps ?? []), step.id])]
-        : session.playedTutorialSteps,
+      playedTutorialSteps:
+        step &&
+        (!step.examples || (session.teaching.exampleIndex ?? 0) === step.examples.length - 1)
+          ? [...new Set([...(session.playedTutorialSteps ?? []), step.id])]
+          : session.playedTutorialSteps,
       teaching: {
         ...session.teaching,
         delivered: true,
         lastDemoIndex: step?.audio ? session.teaching.index : session.teaching.lastDemoIndex,
         lastDemoStepId: step?.audio ? step.id : (session.teaching.lastDemoStepId ?? null),
+        lastDemoExampleIndex: step?.audio
+          ? (session.teaching.exampleIndex ?? 0)
+          : session.teaching.lastDemoExampleIndex,
       },
     });
     return true;
@@ -544,7 +591,17 @@ export function exerciseFeedback(attempt: Attempt, exercise: Exercise): AnswerRe
     exerciseId: attempt.exerciseId,
     grade: attempt.grade,
     skipped: attempt.skipped,
-    example: { ...describePlayedExample(exercise), ...(diagram ? { diagram } : {}) },
+    example: {
+      ...describePlayedExample(exercise),
+      ...(exercise.kind === 'chord' && exercise.expected.quality
+        ? chordFacts(
+            exercise.audio,
+            (exercise.register + 1) * 12 + exercise.root,
+            exercise.expected.quality,
+          )
+        : {}),
+      ...(diagram ? { diagram } : {}),
+    },
   };
 }
 
@@ -594,6 +651,17 @@ export function publicExercise(exercise: Exercise): PublicExercise {
       ? `Two notes ${describePlayedExample(exercise).presentation}.`
       : undefined);
   const question = questionDisplay(exercise);
+  const notation = question?.kind === 'sequence' ? exerciseDiagram(exercise) : undefined;
+  if (question?.kind === 'sequence' && notation?.kind === 'progression')
+    question.notation = notation.chords.map((chord, index) =>
+      question.labels[index] === null
+        ? null
+        : {
+            symbol: chord.symbol,
+            function: chord.function,
+            notes: chord.notes,
+          },
+    );
   return {
     id,
     skillId,

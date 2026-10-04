@@ -12,6 +12,7 @@ import { z } from 'zod';
 import type { Snapshot } from '../types/agent.types.js';
 import { agentInstructions, agentTools } from './agent/presentation.js';
 import type { Config } from '../config/environment.js';
+import { Log } from './log.service.js';
 
 const secretResponse = z.object({ value: z.string().min(8) });
 
@@ -224,12 +225,16 @@ export class SessionService {
         return {
           ...saved,
           playedTutorialSteps: saved.playedTutorialSteps ?? [],
-          teaching: newTeachingProgress(
-            skillId,
-            teaching.index,
-            teaching.lastDemoIndex,
-            teaching.autoContinue,
-          ),
+          teaching: {
+            ...newTeachingProgress(
+              skillId,
+              teaching.index,
+              teaching.lastDemoIndex,
+              teaching.autoContinue,
+              teaching.lastDemoExampleIndex,
+            ),
+            exampleIndex: teaching.exampleIndex ?? 0,
+          },
         };
       }
       return { ...saved, playedTutorialSteps: saved.playedTutorialSteps ?? [] };
@@ -301,6 +306,8 @@ export class SessionService {
     if (!session || session.status !== 'active' || session.mode !== 'coach') {
       throw AppError.create('session_not_ready');
     }
+    Log.context({ sessionId });
+    Log.event('realtime.connect_started', { deployment: config.deployment });
     const now = this.now().getTime();
     const recent = (this.negotiations.get(client) ?? []).filter(
       (time: number) => now - time < 60_000,

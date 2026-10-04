@@ -355,7 +355,7 @@ describe('local session authority', () => {
 });
 
 describe('honestly labeled solo mode', () => {
-  it('parses chord notation and rejects ambiguous CM', async () => {
+  it('parses conventional major and minor chord notation', async () => {
     const result = await start('triad-inversions');
     const current = publicExercise((await store.exercises.get(result.snapshot.current!.id))!);
     expect(parseSoloAnswer('C minor, first inversion', current)).toEqual({
@@ -364,7 +364,12 @@ describe('honestly labeled solo mode', () => {
       inversion: 1,
     });
     expect(parseSoloAnswer('Cm', current)).toEqual({ root: 'C', quality: 'minor' });
-    expect(parseSoloAnswer('CM', current)).toBeNull();
+    expect(parseSoloAnswer('CM', current)).toEqual({ root: 'C', quality: 'major' });
+    expect(parseSoloAnswer('cm', current)).toEqual({ root: 'C', quality: 'minor' });
+    expect(parseSoloAnswer('c7b5', current)).toEqual({ root: 'C', quality: '7b5' });
+    expect(parseSoloAnswer('cadd9', current)).toEqual({ root: 'C', quality: 'add9' });
+    expect(parseSoloAnswer('add9', current)).toEqual({ quality: 'add9' });
+    expect(parseSoloAnswer('CM/E', current)).toEqual({ root: 'C', quality: 'major', inversion: 1 });
     expect(parseSoloAnswer('CM7', current)).toEqual({ root: 'C', quality: 'major7' });
   });
   it('does not silently replace natural language AI with a regex coach', async () => {

@@ -25,12 +25,19 @@ function imports(source: string) {
 }
 
 describe('layered server and contract-only shared code', () => {
-  it('keeps shared limited to course/user types and schemas, without runtime ownership', () => {
+  it('keeps shared limited to public types and schemas, without music or transport ownership', () => {
     expect(
       sourceFiles(join(root, 'shared'))
         .map((file) => relative(join(root, 'shared'), file).replaceAll('\\', '/'))
         .sort(),
-    ).toEqual(['schemas/course.ts', 'schemas/user.ts', 'types/course.ts', 'types/user.ts']);
+    ).toEqual([
+      'schemas/course.ts',
+      'schemas/logging.ts',
+      'schemas/user.ts',
+      'types/course.ts',
+      'types/logging.ts',
+      'types/user.ts',
+    ]);
     for (const file of sourceFiles(join(root, 'shared'))) {
       const source = readFileSync(file, 'utf8');
       expect(imports(source).map((item) => item.module)).not.toEqual(

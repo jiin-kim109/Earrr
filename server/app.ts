@@ -11,6 +11,8 @@ import { sessionRoutes } from './controllers/session.controller.js';
 import { workspaceRoutes, accessToken } from './controllers/workspace.controller.js';
 import { WorkspaceDirectory } from './services/storage/workspace.js';
 import { Store } from './db/database.js';
+import { Log, requestLogging } from './services/log.service.js';
+import { logRoutes } from './controllers/log.controller.js';
 
 import express from 'express';
 import type { Express } from 'express';
@@ -39,8 +41,10 @@ export async function createApp(
   app.disable('x-powered-by');
   app.use(securityHeaders);
   app.use('/api', ownOriginApiOnly(config));
+  app.use('/api', requestLogging);
   app.use('/api/workspaces', express.json({ limit: '8mb' }));
   app.use(express.json({ limit: '160kb' }));
+  app.use('/api', logRoutes(storage));
   app.get('/api/health', (_req, res) => {
     res.json({
       ok: true,
@@ -72,6 +76,7 @@ export async function createApp(
         : await storage.guest(req.get('x-earrr-guest') ?? '');
       res.locals.workspace = workspace;
       res.locals.game = workspace.game;
+      Log.context({ actorId: `${workspace.kind}:${workspace.id}` });
       next();
     });
   } else

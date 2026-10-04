@@ -83,7 +83,7 @@ describe('one presentation contract across the whole course', () => {
     const next = await call('play_exercise');
     expect(next.reply).toBe('cue');
     expect(presentationContext(next).parts.map((part) => part.kind)).toEqual(['next_question']);
-    expect(next.snapshot.current?.cue).toMatch(/^Root: /);
+    expect(next.snapshot.current?.cue).toMatch(/major.*bass position/i);
     expect(publicToolResult(next).current).not.toHaveProperty('prompt');
   });
 

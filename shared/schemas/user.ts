@@ -14,6 +14,7 @@ export const settingsSchema = z
   .object({
     instrument: instrumentSchema,
     volume: z.number().min(0).max(1),
+    voiceVolume: z.number().min(0).max(1).optional(),
     voice: z.enum(['sage', 'ash', 'coral', 'verse']),
     timezone: z.string().max(80).refine(isTimeZone, 'Choose a valid time zone.'),
   })

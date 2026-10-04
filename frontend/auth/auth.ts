@@ -5,6 +5,7 @@ import { useAuth } from './store.js';
 import type { AuthView } from './store.js';
 import { configureSession } from '../storage/access.js';
 import type { PublicAuthConfig, UserProfile } from '../../shared/types/user.js';
+import { Log } from '../lib/log.js';
 
 interface AuthHooks {
   pause: () => Promise<void>;
@@ -82,6 +83,7 @@ async function action(work: () => Promise<void>) {
   try {
     await work();
   } catch (error) {
+    Log.error('auth.failed', error, { view: useAuth.getState().view });
     const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
     useAuth.setState({
       error:
@@ -114,6 +116,7 @@ async function apply(
     if (migrate) account.completedGuestTransfer();
   }
   useAuth.setState({ view: null, error: null, notice: null });
+  Log.event('auth.changed', { authenticated: Boolean(session), guestTransfer: migrate });
   if (session) await loadProfile(session);
 }
 
@@ -128,7 +131,7 @@ export const account = {
       currentUser = useAuth.getState().session?.user.id ?? null;
       return useAuth.getState().session;
     }
-    const response = await fetch('/api/config');
+    const response = await fetch('/api/config', { headers: Log.headers() });
     if (!response.ok) throw new Error('Account configuration could not be loaded.');
     const { auth } = (await response.json()) as { auth: PublicAuthConfig };
     useAuth.setState({ config: auth });

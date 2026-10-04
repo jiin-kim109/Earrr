@@ -439,7 +439,7 @@ describe('durable progress and atomic answers', () => {
       await store.close();
       store = await Store.open(path);
       const restored = await Game.create(store, false, 'test');
-      expect((await store.db.prepare('PRAGMA user_version').get())?.user_version).toBe(12);
+      expect((await store.db.prepare('PRAGMA user_version').get())?.user_version).toBe(13);
       expect(await exportLearning(store)).toEqual(archive);
       expect(await store.agent.getCall(request.callId)).toEqual(cached);
       const retry = await restored.execute(request);

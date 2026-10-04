@@ -6,6 +6,7 @@ $phrases = @{
     'voice-skip-intro.wav' = 'Skip.'
     'voice-replay.wav' = 'Hey, I did not hear that. Could you play that one again, please?'
     'voice-answer.wav' = 'I think the second note went up.'
+    'voice-down.wav' = 'Down.'
     'voice-pause.wav' = 'Hold on a moment. I need to pause the practice.'
     'voice-resume.wav' = 'I am ready now. Let us carry on.'
     'voice-stop.wav' = 'That is enough practice for now. Please end this session.'

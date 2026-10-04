@@ -19,6 +19,8 @@ import { toolArguments, toolRequestSchema, toolNames } from '../../types/agent.t
 import type { ConversationEvent } from '../../types/conversation.types.js';
 import type { ExerciseFeedback } from '../../types/grading.types.js';
 import type { Session } from '../../types/session.types.js';
+import { skills } from '../exercise/catalog.js';
+import { restoreCourseRevision } from '../exercise/course-revision.js';
 
 interface BoundTool {
   arguments: object;
@@ -193,7 +195,30 @@ export class AgentService {
         if (cached.hash !== hash) {
           throw AppError.create('call_id_reused');
         }
-        return presentResult(cached.payload, await this.snapshot());
+        const snapshot = await this.snapshot();
+        if (
+          snapshot.session?.awaitingRoundChoice &&
+          cached.payload.playbackExerciseId &&
+          !(await this.store.attempts.get(cached.payload.playbackExerciseId))
+        ) {
+          const {
+            audio: _audio,
+            playbackExerciseId: _playback,
+            nextQuestion: _next,
+            ...stopped
+          } = cached.payload;
+          const previous = snapshot.course.round.previous;
+          return presentResult(
+            {
+              ...stopped,
+              ...(previous && cached.payload.gradedExerciseId === snapshot.feedback?.exerciseId
+                ? { roundResult: { ...previous, answers: previous.answers ?? [] } }
+                : {}),
+            },
+            snapshot,
+          );
+        }
+        return presentResult(cached.payload, snapshot);
       }
 
       const effect = await this.prepareNext(await bound.run(), request.name, agent);
@@ -264,7 +289,24 @@ export class AgentService {
   }
 
   async restoreCheckpoint() {
+    await restoreCourseRevision(this.store);
     await this.sessions.normalizeTutorialPositions();
+    await this.store.transaction(async () => {
+      for (const skill of skills) {
+        const result = await this.progress.closeResolvedRound(skill.id);
+        if (!result) continue;
+        const session = await this.store.sessions.active();
+        if (session?.focus === skill.id) {
+          const last = await this.store.attempts.byId(result.answers.at(-1)!.attemptId);
+          if (!last) throw new Error('The completed round is missing its last graded answer.');
+          await this.store.sessions.save({
+            ...session,
+            currentExerciseId: last.exerciseId,
+            awaitingRoundChoice: true,
+          });
+        }
+      }
+    });
     const active = await this.store.sessions.active();
     if (!active) return;
     const previous = await this.store.conversations.latest(active.id);

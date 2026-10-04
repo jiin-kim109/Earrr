@@ -4,7 +4,7 @@ import { learningEventTypes, transcriptSchema } from '../../types/conversation.t
 
 const tables = [
   ['settings', ['id', 'data']],
-  ['course', ['id', 'skill_id']],
+  ['course', ['id', 'skill_id', 'revision']],
   ['sessions', ['id', 'status', 'started_at', 'data']],
   ['exercises', ['id', 'session_id', 'created_at', 'data']],
   [
@@ -69,6 +69,10 @@ export function sanitizeLearning(input: LearningArchive) {
   const records: LearningArchive['tables'] = {};
   for (const [name, columns] of tables) {
     records[name] = archive.tables[name] ?? [];
+    if (name === 'course')
+      records[name] = records[name]!.map((record) =>
+        'revision' in record ? record : { ...record, revision: 1 },
+      );
     validateRecords(records[name], columns);
   }
   records.transcripts = records.transcripts!.map((record) => {

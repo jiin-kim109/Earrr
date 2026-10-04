@@ -185,7 +185,8 @@ test('shows only essential setup without capturing a microphone whose permission
   await expect(page.getByTestId('microphone-meter')).toHaveAttribute('data-active', 'false');
   await expect(page.getByText('Instrument sound', { exact: true })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Speakers', exact: true })).toBeVisible();
-  await expect(page.getByRole('slider', { name: 'Speaker volume' })).toHaveCount(1);
+  await expect(page.getByRole('slider', { name: 'Tutor voice', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('slider', { name: 'Instrument sound', exact: true })).toHaveCount(1);
   await expect(page.getByRole('slider')).toHaveCount(1);
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await expect(page.getByTestId('instrument-piano').locator('svg text')).toHaveCount(0);
@@ -663,7 +664,7 @@ test('combines speaker, master volume and fixed-size instrument controls without
   expect(await popup.boundingBox()).toEqual(popupBefore);
   expect(await page.getByTestId('lesson-toolbar').boundingBox()).toEqual(toolbar);
   await expect(page.getByTestId('instrument-guitar').first().getByRole('button')).toHaveCount(0);
-  const volume = popup.getByRole('slider', { name: 'Speaker volume' });
+  const volume = popup.getByRole('slider', { name: 'Instrument sound', exact: true });
   await volume.focus();
   await page.keyboard.press('Home');
   await expect
@@ -708,6 +709,58 @@ for (const viewport of [
     ).toBeVisible();
   });
 }
+
+test('keeps tutor and instrument volume independent in setup and in-game settings', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/');
+  const tutor = page.getByRole('slider', { name: 'Tutor voice', exact: true });
+  const instrument = page.getByRole('slider', { name: 'Instrument sound', exact: true });
+  await expect(tutor).toHaveAttribute('aria-valuenow', '80');
+  await expect(instrument).toHaveAttribute('aria-valuenow', '80');
+  await tutor.focus();
+  await page.keyboard.press('Home');
+  await expect
+    .poll(
+      async () =>
+        ((await (await request.get('/api/state')).json()) as Snapshot).settings.voiceVolume,
+    )
+    .toBe(0);
+  expect(((await (await request.get('/api/state')).json()) as Snapshot).settings.volume).toBe(0.8);
+  await enter(page);
+  await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
+  const popup = page.getByRole('dialog', { name: 'Audio settings', exact: true });
+  await expect(popup.getByRole('slider', { name: 'Tutor voice', exact: true })).toHaveAttribute(
+    'aria-valuenow',
+    '0',
+  );
+  const sound = popup.getByRole('slider', { name: 'Instrument sound', exact: true });
+  await sound.focus();
+  await page.keyboard.press('End');
+  await expect
+    .poll(
+      async () => ((await (await request.get('/api/state')).json()) as Snapshot).settings.volume,
+    )
+    .toBe(1);
+  expect(((await (await request.get('/api/state')).json()) as Snapshot).settings.voiceVolume).toBe(
+    0,
+  );
+  await page.screenshot({
+    path: 'test-results\\separate-audio-volumes.png',
+    animations: 'disabled',
+    fullPage: true,
+  });
+  await page.reload();
+  await expect(page.getByRole('slider', { name: 'Tutor voice', exact: true })).toHaveAttribute(
+    'aria-valuenow',
+    '0',
+  );
+  await expect(page.getByRole('slider', { name: 'Instrument sound', exact: true })).toHaveAttribute(
+    'aria-valuenow',
+    '100',
+  );
+});
 
 test('resizes the two desktop panels by pointer and keyboard', async ({ page }) => {
   await page.goto('/');
@@ -966,7 +1019,9 @@ test('does not emit a generic audio-paused banner and contacts the server despit
   const request = page.waitForRequest('**/api/realtime/connect');
   await enter(page);
   await request;
-  await expect(page.getByRole('alert')).toContainText('Test connection reached the server.');
+  await expect(
+    page.getByRole('alertdialog', { name: 'Something went wrong', exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText('Browser audio is paused. Select Enable audio to continue.', { exact: true }),
   ).toHaveCount(0);
@@ -1031,12 +1086,12 @@ for (const stage of ['intervals-foundation', 'intervals-harmonic'] as const) {
   });
 }
 
-test('uses a single output volume for the instrument and persists mute across reload', async ({
+test('persists instrument mute independently from tutor voice across reload', async ({
   page,
   request,
 }) => {
   await page.goto('/');
-  const slider = page.getByRole('slider', { name: 'Speaker volume' });
+  const slider = page.getByRole('slider', { name: 'Instrument sound', exact: true });
   await expect(slider).toBeEnabled();
   await slider.focus();
   await page.keyboard.press('Home');
@@ -1436,7 +1491,7 @@ for (const viewport of [
   });
 }
 
-test('keeps Start training pressed with a spinner during connection and recovers after failure', async ({
+test('keeps Start training pressed during connection, then requires page refresh after failure', async ({
   page,
 }) => {
   await mockConfigured(page);
@@ -1471,9 +1526,193 @@ test('keeps Start training pressed with a spinner during connection and recovers
   } finally {
     release();
   }
-  await expect(page.getByRole('alert')).toContainText('Connection unavailable');
-  await expect(button).toBeEnabled();
+  const failure = page.getByRole('alertdialog', { name: 'Something went wrong', exact: true });
+  await expect(failure).toBeVisible();
+  await expect(failure.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
   await expect(page.getByTestId('start-spinner')).toHaveCount(0);
+});
+
+test('disconnects into a blurred refresh toast without background reconnection', async ({
+  page,
+}) => {
+  await mockConfigured(page);
+  await page.addInitScript({ content: controlledCoachScript });
+  let connections = 0;
+  await page.route('**/api/realtime/connect', (route) => {
+    connections++;
+    return route.fulfill({
+      json: { answer: 'test', sessionId: route.request().postDataJSON().sessionId },
+    });
+  });
+  await page.goto('/');
+  await enter(page);
+  await expect(player(page)).toBeVisible();
+  await page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').disconnect());
+  const failure = page.getByRole('alertdialog', { name: 'Something went wrong', exact: true });
+  await expect(failure).toBeVisible();
+  await expect(page.getByTestId('fatal-backdrop')).toHaveCSS('backdrop-filter', 'blur(3px)');
+  await page.keyboard.press('Escape');
+  await expect(failure).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.waitForTimeout(1200);
+  expect(connections).toBe(1);
+  await page.screenshot({
+    path: 'test-results\\refresh-only-failure.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
+  await failure.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Start training', exact: true })).toBeVisible();
+  await expect(page.getByTestId('fatal-toast')).toHaveCount(0);
+  expect(connections).toBe(1);
+});
+
+test('keeps the refresh toast reachable on a narrow screen after a realtime error', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await controlledCoach(page);
+  await page.goto('/');
+  await enter(page);
+  await expect(player(page)).toBeVisible();
+  await page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').fail());
+  const toast = page.getByRole('alertdialog', { name: 'Something went wrong', exact: true });
+  await expect(toast).toBeVisible();
+  await expect(toast.getByRole('button', { name: 'Refresh', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
+  const box = (await toast.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(320);
+  expect(box.y + box.height).toBeLessThanOrEqual(568);
+  await page.screenshot({
+    path: 'test-results\\refresh-only-failure-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
+});
+
+test('a fatal server error on answer review also uses the global refresh surface', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await enter(page);
+  await page.getByRole('textbox', { name: 'Message', exact: true }).fill('same');
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(player(page).locator('[data-outcome="incorrect"]')).toHaveCount(1);
+  await page.route('**/api/answers/**', (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: { code: 'server_error', message: 'Fixture storage unavailable.' } },
+    }),
+  );
+  await page.getByRole('button', { name: 'Review answer 1: Incorrect', exact: true }).click();
+  await expect(
+    page.getByRole('alertdialog', { name: 'Something went wrong', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId('fatal-toast').getByRole('button', { name: 'Refresh', exact: true }),
+  ).toBeVisible();
+});
+
+test('captures traffic and training actions as structured raw events without message contents', async ({
+  page,
+}) => {
+  const events: Array<{
+    event: string;
+    message: Record<string, unknown>;
+    visitId: string;
+    visitorId: string;
+  }> = [];
+  await page.route('**/api/logs', async (route) => {
+    events.push(...route.request().postDataJSON().events);
+    await route.fulfill({ status: 202, body: '' });
+  });
+  await page.goto('/');
+  await enter(page);
+  await page.getByRole('textbox', { name: 'Message', exact: true }).fill('same');
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(player(page).locator('[data-outcome="incorrect"]')).toHaveCount(1);
+  await expect
+    .poll(() => events.map((event) => event.event))
+    .toEqual(
+      expect.arrayContaining([
+        'app.opened',
+        'screen.viewed',
+        'training.start_clicked',
+        'input.submitted',
+        'audio.started',
+        'api.completed',
+      ]),
+    );
+  expect(new Set(events.map((event) => event.visitId)).size).toBe(1);
+  expect(new Set(events.map((event) => event.visitorId)).size).toBe(1);
+  const input = events.find((event) => event.event === 'input.submitted')!;
+  expect(input.message).toMatchObject({ input: 'text', characters: 4 });
+  expect(input.message).not.toHaveProperty('text');
+  expect(input.message).not.toHaveProperty('transcript');
+});
+
+test('a rendering failure also produces the refresh toast instead of a blank page', async ({
+  page,
+}) => {
+  await page.route('**/api/tools', async (route) => {
+    const response = await route.fetch();
+    const result: ToolResult = await response.json();
+    if (result.snapshot) Reflect.set(result.snapshot.course, 'lessons', null);
+    await route.fulfill({ response, json: result });
+  });
+  await page.goto('/');
+  await enter(page);
+  await expect(
+    page.getByRole('alertdialog', { name: 'Something went wrong', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId('fatal-toast').getByRole('button', { name: 'Refresh', exact: true }),
+  ).toBeVisible();
+});
+
+test('eight correct answers end the round immediately with two unasked positions', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/');
+  await enter(page);
+  for (let index = 0; index < 8; index++) {
+    await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+    const state: Snapshot = await (await request.get('/api/state')).json();
+    const played: ToolResult = await (
+      await request.post('/api/tools', {
+        headers: { 'x-earrr-client': '1' },
+        data: {
+          callId: randomUUID(),
+          sessionId: state.session!.id,
+          name: 'replay_exercise',
+          arguments: {},
+        },
+      })
+    ).json();
+    const [a, b] = played.audio!.events;
+    await page
+      .getByRole('textbox', { name: 'Message', exact: true })
+      .fill(b!.midi > a!.midi ? 'up' : 'down');
+    await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    await expect(player(page).locator('[data-outcome="correct"]')).toHaveCount(index + 1);
+    if (index < 7) await page.getByRole('button', { name: 'Next question', exact: true }).click();
+  }
+  await expect(
+    player(page).getByRole('heading', { name: 'Round passed', exact: true }),
+  ).toBeVisible();
+  await expect(player(page).locator('[data-outcome="unanswered"]')).toHaveCount(2);
+  await expect(
+    player(page).getByRole('button', { name: 'Restart exercises', exact: true }),
+  ).toBeVisible();
+  await expect(
+    player(page).getByRole('button', { name: 'Next question', exact: true }),
+  ).toHaveCount(0);
+  const state: Snapshot = await (await request.get('/api/state')).json();
+  expect(state.course.round.previous).toMatchObject({ correct: 8, answered: 8, passed: true });
+  expect(state.session?.awaitingRoundChoice).toBe(true);
 });
 
 test('waits at the entry button until the offline question is ready, without a loading screen', async ({
@@ -1679,9 +1918,10 @@ for (const correct of [7, 8]) {
       const [a, b] = replay.audio!.events;
       const up = b!.midi > a!.midi;
       const response = page.waitForResponse('**/api/solo/answer');
+      const answerCorrect = correct === 8 ? index < 7 || index === 9 : index < correct;
       await page
         .getByLabel('Message', { exact: true })
-        .fill((index < correct ? up : !up) ? 'up' : 'down');
+        .fill((answerCorrect ? up : !up) ? 'up' : 'down');
       await page.getByRole('button', { name: 'Send message', exact: true }).click();
       const graded: ToolResult = await (await response).json();
       if (index < 9) {
@@ -1691,10 +1931,7 @@ for (const correct of [7, 8]) {
           .getByRole('list', { name: 'Round answers' })
           .getByRole('listitem')
           .nth(index);
-        await expect(tile).toHaveAttribute(
-          'data-outcome',
-          index < correct ? 'correct' : 'incorrect',
-        );
+        await expect(tile).toHaveAttribute('data-outcome', answerCorrect ? 'correct' : 'incorrect');
         const mark = tile.locator('span');
         expect(await mark.evaluate((element) => getComputedStyle(element).animationName)).not.toBe(
           'none',
@@ -2164,6 +2401,7 @@ for (const viewport of [
       };
     };
     const labelStyle = await page
+      .getByTestId('setup-music')
       .getByText('Instrument sound', { exact: true })
       .evaluate(typography);
     const selectorStyle = await picker.evaluate(typography);

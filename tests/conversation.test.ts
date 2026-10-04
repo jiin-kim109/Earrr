@@ -120,7 +120,7 @@ beforeEach(async () => {
     afterReply: after,
     stopMusic: vi.fn(),
     phase: vi.fn(),
-    error: (message) => errors.push(message),
+    error: (error) => errors.push(error instanceof Error ? error.message : String(error)),
     message: (role, text, id, complete, interrupted) => {
       const previous = messages.find((item) => item.id === id);
       const item: Transcript = {
@@ -143,6 +143,49 @@ afterEach(async () => {
 });
 
 describe('causal single-stream turns', () => {
+  it('navigates to the first tutorial step without presenting a late grading result from the old lesson', async () => {
+    for (const id of ['pitch-direction', 'intervals-foundation', 'intervals-harmonic'] as const)
+      await store.progress.completeLesson(id, new Date().toISOString());
+    await tool('play_exercise');
+    await reply('Listen to the example.');
+    const exercise = (await store.exercises.get(snapshot.current!.id))!;
+    loop.text('My answer.');
+    let finish!: () => void;
+    const held = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    execute.mockImplementationOnce(async (name, args, id) => {
+      const result = await game.execute(
+        { callId: id, sessionId: snapshot.session!.id, name, arguments: args },
+        true,
+      );
+      await held;
+      return result;
+    });
+    const old = created();
+    done(old, [
+      { name: 'submit_answer', args: { exerciseId: exercise.id, answer: exercise.expected } },
+    ]);
+    await vi.waitFor(() =>
+      expect(execute.mock.calls.some(([name]) => name === 'submit_answer')).toBe(true),
+    );
+    const navigation = loop.action('select_lesson', { skillId: 'triads' });
+    finish();
+    await navigation;
+    expect(snapshot.course.selectedLesson).toBe('triads');
+    expect(snapshot.teaching?.stepId).toBe('overview');
+    const request = responses().at(-1)!.response as {
+      input: Array<{ content: Array<{ text: string }> }>;
+      instructions: string;
+    };
+    const context = JSON.parse(request.input[0]!.content[0]!.text);
+    expect(context.parts.map((part: { kind: string }) => part.kind)).toEqual(['teaching']);
+    expect(context.parts[0].explanation).toContain('major from minor');
+    expect(request.instructions).toContain('entire current presentation');
+    expect(snapshot.totalAnswers).toBe(1);
+    expect(errors).toEqual([]);
+  });
+
   it('waits for tool completion before requesting feedback and waits for drained speech before music', async () => {
     await tool('play_exercise');
     expect(execute).toHaveBeenCalledOnce();

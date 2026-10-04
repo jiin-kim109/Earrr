@@ -31,6 +31,7 @@ export interface StudioState {
   devices: MediaDeviceInfo[];
   previewingMicrophone: boolean;
   error: string | null;
+  fatalError: { code: string } | null;
   notice: string | null;
   audioNotices: Record<AudioNoticeSurface, AudioNoticeState | null>;
   voiceBlocked: boolean;
@@ -60,6 +61,7 @@ export const createStudioStore = () =>
     devices: [],
     previewingMicrophone: false,
     error: null,
+    fatalError: null,
     notice: null,
     audioNotices: { setup: null, lesson: null },
     voiceBlocked: false,

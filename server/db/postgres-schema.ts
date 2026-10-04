@@ -16,7 +16,7 @@ export async function initializePostgres(db: Database) {
       CREATE TABLE IF NOT EXISTS practice_rounds (skill_id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS tool_calls (id TEXT PRIMARY KEY, request_hash TEXT NOT NULL, created_at TEXT NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS playback_receipts (id TEXT PRIMARY KEY, exercise_id TEXT NOT NULL REFERENCES exercises(id));
-      CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id=1), skill_id TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id=1), skill_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 2);
       CREATE TABLE IF NOT EXISTS lesson_completions (skill_id TEXT PRIMARY KEY, completed_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS lesson_introductions (skill_id TEXT PRIMARY KEY, disposition TEXT NOT NULL, finished_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS lesson_positions (skill_id TEXT NOT NULL, mode TEXT NOT NULL CHECK(mode IN ('coach', 'solo')), data TEXT NOT NULL, PRIMARY KEY(skill_id,mode));
@@ -27,7 +27,7 @@ export async function initializePostgres(db: Database) {
       CREATE INDEX IF NOT EXISTS conversation_thread ON conversation_events(session_id,sequence);
       CREATE TABLE IF NOT EXISTS session_checkpoints (sequence BIGSERIAL PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), event_sequence BIGINT NOT NULL REFERENCES conversation_events(sequence), created_at TEXT NOT NULL, state TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS checkpoint_thread ON session_checkpoints(session_id,sequence DESC);
-      INSERT INTO schema_version(id, version) VALUES(1,12) ON CONFLICT(id) DO NOTHING;
+      INSERT INTO schema_version(id, version) VALUES(1,13) ON CONFLICT(id) DO NOTHING;
     `);
     const version = await db.prepare('SELECT version FROM schema_version WHERE id=1').get();
     if ([9, 10].includes(Number(version?.version))) {
@@ -40,9 +40,15 @@ export async function initializePostgres(db: Database) {
         UPDATE session_checkpoints SET state = (state::jsonb - 'messages')::text;
         UPDATE tool_calls SET data = (data::jsonb - 'snapshot' - 'messages' - 'transcript' - 'recentConversation')::text;
       `);
-    } else if (![11, 12].includes(Number(version?.version)))
+    } else if (![11, 12, 13].includes(Number(version?.version)))
       throw new Error('The PostgreSQL schema version is not supported.');
     if (Number(version?.version) < 12)
       await db.exec('UPDATE schema_version SET version=12 WHERE id=1');
+    if (Number(version?.version) < 13) {
+      await db.exec(
+        'ALTER TABLE course ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1',
+      );
+      await db.exec('UPDATE schema_version SET version=13 WHERE id=1');
+    }
   });
 }

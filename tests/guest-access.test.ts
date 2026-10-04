@@ -150,7 +150,7 @@ describe('browser progress and workspace ownership', () => {
     expect(actions).toEqual([]);
   });
 
-  it('transparently restores expired guest capabilities and retries the same mutation once', async () => {
+  it('preserves an expired-capability mutation for page-refresh recovery without retrying in the background', async () => {
     await access.restoreGuest();
     const { api } = await import('../frontend/lib/api.js');
     fetcher.mockResolvedValueOnce(
@@ -160,11 +160,16 @@ describe('browser progress and workspace ownership', () => {
       ),
     );
     const body = JSON.stringify({ callId: 'call_recovery_fixture', name: 'play_exercise' });
-    await expect(api('/tools', { method: 'POST', body })).resolves.toEqual(snapshot);
-    expect(actions).toEqual([]);
+    await expect(api('/tools', { method: 'POST', body })).rejects.toMatchObject({
+      code: 'guest_session_missing',
+    });
+    expect(actions).toHaveLength(1);
     const retries = fetcher.mock.calls.filter(([url]) => url === '/api/tools');
-    expect(retries).toHaveLength(3);
-    expect(retries.map(([, options]) => options?.body)).toEqual([body, body, body]);
+    expect(retries).toHaveLength(1);
+    expect(retries[0]![1]?.body).toBe(body);
+    await access.restoreGuest();
+    expect(actions).toEqual([]);
+    expect(fetcher.mock.calls.filter(([url]) => url === '/api/tools')).toHaveLength(2);
   });
 
   it('preserves guest progress until the verified cloud import succeeds', async () => {

@@ -63,8 +63,10 @@ export class ProgressService {
     round.answers.push({ attemptId: attempt.id, outcome });
     round.remaining = round.remaining.filter((item) => item.id !== exercise.roundTargetId);
     const misses = round.answers.filter((answer) => answer.outcome === 'incorrect').length;
+    const correct = round.answers.length - misses;
     if (
       round.answers.length < roundRule.questions &&
+      correct < roundRule.correct &&
       misses <= roundRule.questions - roundRule.correct
     ) {
       await this.store.progress.saveRound(round);
@@ -73,12 +75,14 @@ export class ProgressService {
     return await this.finishRound(round);
   }
 
-  async closeUnreachableRound(skillId: SkillId): Promise<RoundResult | null> {
+  async closeResolvedRound(skillId: SkillId): Promise<RoundResult | null> {
     const round = await this.store.progress.round(skillId);
     if (
       !round ||
-      round.answers.filter((answer) => answer.outcome === 'incorrect').length <=
-        roundRule.questions - roundRule.correct
+      round.awaitingChoice ||
+      (round.answers.filter((answer) => answer.outcome === 'correct').length < roundRule.correct &&
+        round.answers.filter((answer) => answer.outcome === 'incorrect').length <=
+          roundRule.questions - roundRule.correct)
     )
       return null;
     return (await this.finishRound(round)).roundResult!;
@@ -216,8 +220,19 @@ export function mastery(progress: SkillProgress): Mastery {
   const mastered =
     score >= 85 &&
     progress.unassistedCorrect >= 16 &&
-    progress.roots.length >= 6 &&
-    progress.registers.length >= 2 &&
+    progress.roots.length >=
+      (progress.skillId === 'chord-roots'
+        ? 5
+        : [
+              'scale-degrees',
+              'major-functions',
+              'minor-functions',
+              'cadences',
+              'progressions',
+            ].includes(progress.skillId)
+          ? 3
+          : 6) &&
+    progress.registers.length >= (progress.skillId === 'chord-roots' ? 1 : 2) &&
     progress.practiceDays.length >= 2;
   if (mastered) return 'Mastered';
   if (score >= 75 && progress.unassistedCorrect >= 8 && progress.roots.length >= 3) return 'Secure';

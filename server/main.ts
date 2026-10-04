@@ -8,6 +8,8 @@ import { createApp } from './app.js';
 import { Store } from './db/database.js';
 import { WorkspaceDirectory } from './services/storage/workspace.js';
 import { defaultSettings } from './repositories/user.repository.js';
+import { Log } from './services/log.service.js';
+import { LogRepository } from './repositories/log.repository.js';
 
 import express from 'express';
 
@@ -40,12 +42,30 @@ if (production && !config.supabaseUrl && process.env.EARRR_LEGACY_STORAGE !== '1
 const storage = config.supabaseUrl
   ? new WorkspaceDirectory(config)
   : await Store.open(config.databaseUrl ?? config.databasePath);
+const logs = storage instanceof WorkspaceDirectory ? new LogRepository(storage.cloud.client) : null;
+Log.configure({
+  write: logs ? (events) => logs.write(events) : null,
+  releaseId: config.releaseId,
+  environment:
+    process.env.NODE_ENV === 'production'
+      ? 'production'
+      : process.env.NODE_ENV === 'test'
+        ? 'test'
+        : 'development',
+  secrets: [
+    config.apiKey,
+    config.supabaseServiceKey ?? '',
+    config.learningSaveKey ?? '',
+    config.databaseUrl ?? '',
+  ],
+});
 const { app } =
   storage instanceof Store ? await createApp(config, storage) : await createApp(config, storage);
 const http = createServer(app);
 const entrySettings = `<script id="earrr-entry-settings" type="application/json">${JSON.stringify({
   instrument: defaultSettings.instrument,
   volume: defaultSettings.volume,
+  voiceVolume: defaultSettings.voiceVolume,
 })}</script>`;
 const withEntrySettings = (html: string) => html.replace('</head>', `${entrySettings}</head>`);
 
@@ -78,6 +98,10 @@ if (production) {
 
 const listenHost = config.listenHost ?? '127.0.0.1';
 http.listen(config.port, listenHost, () => {
+  Log.event('server.started', { port: config.port, configured: config.configured });
+  console.log(
+    `Telemetry: ${Log.enabled ? 'Supabase raw events' : 'disabled (no Supabase storage)'}.`,
+  );
   console.log(`Earrr is listening at http://${listenHost}:${config.port}`);
   console.log(
     `Storage: ${storage instanceof WorkspaceDirectory ? 'browser guest / Supabase account' : storage.db.kind === 'sqlite' ? config.databasePath : 'PostgreSQL configured'}`,
@@ -98,6 +122,18 @@ http.on('error', async (error: NodeJS.ErrnoException) => {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () =>
     http.close(async () => {
+      Log.event('server.stopped', { signal });
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Log.flush(),
+        new Promise<void>((done) => {
+          deadline = setTimeout(() => {
+            console.warn('[telemetry] Shutdown flush deadline reached.');
+            done();
+          }, 5500);
+        }),
+      ]);
+      clearTimeout(deadline);
       await storage.close();
       process.exit(0);
     }),

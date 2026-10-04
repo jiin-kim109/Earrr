@@ -75,12 +75,11 @@ describe('server-owned Jinja prompt templates', () => {
     expect(connectionPrompt()).toContain('Restored dialogue is read-only context');
     expect(connectionPrompt()).toContain('do not rerun historical actions');
     expect(presentationInstructions('feedback')).toContain('parts in order');
-    expect(presentationInstructions('feedback')).toContain(
-      'Future note names are intentionally hidden',
-    );
-    expect(presentationInstructions('feedback')).toContain('plays it after you finish speaking');
-    expect(presentationInstructions('feedback')).toContain('No filler');
-    expect(presentationInstructions('cue')).toContain('next question');
+    expect(presentationInstructions('feedback')).toContain('entire current presentation');
+    expect(presentationInstructions('feedback')).toContain('handled outside your response');
+    expect(presentationInstructions('teaching')).toContain('entire current presentation');
+    expect(presentationInstructions('instruction')).toContain('musical question');
+    expect(presentationInstructions('cue')).toContain('next-question cue');
     expect(presentationInstructions('message')).toBeUndefined();
   });
 

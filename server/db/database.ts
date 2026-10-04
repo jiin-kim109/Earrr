@@ -38,7 +38,7 @@ export class Store {
       : new SqliteDatabase(connection);
     try {
       const version =
-        db.kind === 'sqlite' ? await initializeSchema(db) : (await initializePostgres(db), 12);
+        db.kind === 'sqlite' ? await initializeSchema(db) : (await initializePostgres(db), 13);
       const store = new Store(db, now);
       if (db.kind === 'sqlite') await store.conversations.initialize();
       await store.user.initialize();

@@ -4,18 +4,30 @@ import { requestGame, reply } from '../request-context.js';
 import { AppError } from '../errors/app-error.js';
 import { toolRequestSchema } from '../types/agent.types.js';
 import type { Store } from '../db/database.js';
+import { Log, logToolResult } from '../services/log.service.js';
 
 export function agentRoutes() {
   const router = Router();
-  router.get('/state', async (_req, res) => reply(res, await requestGame(res).snapshot()));
-  router.post('/tools', async (req, res) => reply(res, await requestGame(res).execute(req.body)));
+  router.get('/state', async (_req, res) => {
+    const snapshot = await requestGame(res).snapshot();
+    Log.context({ sessionId: snapshot.session?.id ?? null });
+    reply(res, snapshot);
+  });
+  router.post('/tools', async (req, res) => {
+    const input = toolRequestSchema.parse(req.body);
+    const result = await requestGame(res).execute(input);
+    logToolResult(input, result);
+    reply(res, result);
+  });
   router.post('/agent/tools', async (req, res, next) => {
     const game = requestGame(res);
     let action: string | null = null;
     try {
       const input = await agentRequest(req.body, game.store);
       action = input.name;
-      reply(res, await game.execute(input, true));
+      const result = await game.execute(input, true);
+      logToolResult(input, result);
+      reply(res, result);
     } catch (error) {
       const details =
         error instanceof ZodError

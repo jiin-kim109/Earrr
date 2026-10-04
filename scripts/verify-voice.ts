@@ -292,7 +292,7 @@ export async function verifyVoice(
       'Spoken answer reaches deterministic grading in the background',
     );
     expect(graded.recentAttempts[0]?.answer?.direction).toBe('up');
-    const next = await wait(
+    let next = await wait(
       (state) => Boolean(state.current && state.current.id !== id),
       'Fresh exercise follows a spoken answer',
     );
@@ -321,6 +321,24 @@ export async function verifyVoice(
     );
     console.log(
       'PASS microphone captions animate once and retain their DOM identity while updating',
+    );
+
+    marker = await turnMarker(page);
+    await speak('voice-down.wav');
+    const down = await wait(
+      (state) => state.totalAnswers === baseline + 2,
+      'A short spoken down answer reaches grading without a clarification loop',
+    );
+    expect(down.recentAttempts[0]?.answer?.direction).toBe('down');
+    next = await wait(
+      (state) => Boolean(state.current && state.current.id !== next.current!.id),
+      'Another question follows the short down answer',
+    );
+    await expectOneSpokenReply(page, marker, 'Short down answer');
+    await expect(page.getByLabel('Exercise player', { exact: true })).toHaveAttribute(
+      'data-phase',
+      'listening',
+      { timeout: 30_000 },
     );
 
     marker = await turnMarker(page);

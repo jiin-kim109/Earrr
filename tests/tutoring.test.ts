@@ -97,7 +97,7 @@ describe('a tutor before an examiner', () => {
     expect(await store.attempts.recent()).toHaveLength(0);
     expect(await store.progress.introductionSeen('intervals-foundation')).toBe(true);
     expect(
-      result.snapshot.course.lessons.find((item) => item.skillId === 'intervals-chromatic')
+      result.snapshot.course.lessons.find((item) => item.skillId === 'triads')
         ?.unlocked,
     ).toBe(false);
   });

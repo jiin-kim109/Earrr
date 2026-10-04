@@ -1,4 +1,11 @@
-import { getSkill, intervalLessons, chordPools, scalePools } from './catalog.js';
+import {
+  getSkill,
+  intervalLessons,
+  chordPools,
+  scalePools,
+  functionPools,
+  isInversionLesson,
+} from './catalog.js';
 import { cadence } from './lessons.js';
 import {
   chordNotes,
@@ -20,7 +27,14 @@ import type {
 } from '../../../shared/types/course.js';
 import type { Settings } from '../../../shared/types/user.js';
 import type { Exercise, ExerciseTarget } from '../../types/exercise.types.js';
-import { chordFoundation, comparisonSkills, completionSkills, sequenceTask } from './tasks.js';
+import {
+  chordFoundation,
+  comparisonSkills,
+  completionSkills,
+  guidedProgressions,
+  sequenceTask,
+  functionLabel,
+} from './tasks.js';
 
 function event(
   midi: number,
@@ -57,13 +71,25 @@ export function createExercise(options: {
 }): Exercise {
   const { id, seed, skillId, settings, now } = options;
   const target = options.target ?? {};
-  if (target.format === 'complete' && !completionSkills.includes(skillId))
+  if (
+    target.format === 'complete' &&
+    !completionSkills.includes(skillId) &&
+    !guidedProgressions.includes(skillId)
+  )
     throw new Error('Completion is not an exercise format for this lesson.');
   if (target.format === 'compare' && !comparisonSkills.includes(skillId))
     throw new Error('Comparison is not an exercise format for this lesson.');
   const random = seededRandom(seed);
-  const root = target.root ?? Math.floor(random() * 12);
-  const register = choose(random, [3, 4]);
+  const root =
+    target.root ??
+    (skillId === 'chord-roots'
+      ? choose(random, [0, 2, 4, 5, 7])
+      : guidedProgressions.includes(skillId) ||
+          functionPools[skillId] ||
+          skillId === 'scale-degrees'
+        ? choose(random, [0, 5, 7])
+        : Math.floor(random() * 12));
+  const register = skillId === 'chord-roots' ? 4 : choose(random, [3, 4]);
   const rootMidi = 12 * (register + 1) + root;
   const instrument = settings.instrument;
   const exercise: Exercise = {
@@ -88,8 +114,9 @@ export function createExercise(options: {
   const pool = chordPools[skillId];
   if (pool) {
     const quality = target.quality ?? choose(random, pool);
+    if (!pool.includes(quality)) throw new Error('The planned quality is outside this lesson.');
     const definition = chords[quality];
-    const inversionTask = skillId === 'triad-inversions' || skillId === 'seventh-inversions';
+    const inversionTask = isInversionLesson(skillId);
     const inversion = inversionTask
       ? (target.inversion ?? Math.floor(random() * definition.intervals.length))
       : 0;
@@ -102,13 +129,16 @@ export function createExercise(options: {
     exercise.required = rootTask
       ? ['root', 'quality']
       : inversionTask
-        ? ['quality', 'inversion']
+        ? ['inversion']
         : ['quality'];
     exercise.expected = { root: noteName(root), quality, ...(inversionTask ? { inversion } : {}) };
     exercise.prompt = rootTask
       ? 'First, C4 as a reference. Then identify the root and quality of the chord.'
-      : `${suppliedRoot ? `The root is ${noteName(root)}. ` : ''}${inversionTask ? 'Identify the chord quality and inversion.' : 'Identify the chord quality.'}`;
+      : inversionTask
+        ? `${noteName(root)} ${definition.name}. Identify its bass position.`
+        : `${suppliedRoot ? `The root is ${noteName(root)}. ` : ''}Identify the chord quality.`;
     if (suppliedRoot) exercise.cue = `Root: ${noteName(root)}.`;
+    if (inversionTask) exercise.cue = exercise.prompt;
     exercise.label = `${noteName(root)} ${definition.name}${inversionTask ? `, ${inversionNames[inversion]}` : ''}`;
     exercise.explanation = definition.color;
     exercise.hints = [
@@ -133,10 +163,49 @@ export function createExercise(options: {
       exercise.task = { kind: 'compare-chords', referenceQuality };
       exercise.prompt = `First ${noteName(root)} ${chords[referenceQuality].name}, then a changed chord on the same root. Name the second chord's quality.`;
       exercise.cue = exercise.prompt;
-    } else if (target.format === 'identify') {
+    } else if (target.format === 'identify' && !inversionTask) {
       exercise.cue = `Root ${noteName(root)}. Name this chord's quality.`;
     }
     exercise.audio = audio(events, instrument);
+    return exercise;
+  }
+
+  const functions = functionPools[skillId];
+  if (functions) {
+    const degree = target.degree ?? choose(random, functions);
+    const qualities: ChordQuality[] = [
+      'major7',
+      'minor7',
+      'minor7',
+      'major7',
+      'dominant7',
+      'minor7',
+      'halfDiminished7',
+    ];
+    Object.assign(exercise, {
+      kind: 'function',
+      expected: { degree },
+      required: ['degree'],
+      prompt: `First the tonic in ${noteName(root)} major. Which function follows: ${functions.map((value) => functionLabel(value)).join(', ')}?`,
+      cue: `Key ${noteName(root)} major. Identify the chord after the tonic reference.`,
+      label: functionLabel(degree),
+      explanation: `The chord is built on scale degree ${degree} of ${noteName(root)} major.`,
+      hints: [
+        'The first chord is home. Compare the next bass note with it.',
+        `The answer is one of ${functions.join(', ')}.`,
+        'Listen to the chord root, not just its major or minor color.',
+      ],
+    });
+    exercise.audio = audio(
+      [
+        ...block(chordNotes(rootMidi, 'major7'), 0.1, 0.9, 'reference'),
+        ...block(
+          chordNotes(rootMidi + scales.major.steps[degree - 1]!, qualities[degree - 1]!),
+          1.5,
+        ),
+      ],
+      instrument,
+    );
     return exercise;
   }
 
@@ -182,11 +251,11 @@ export function createExercise(options: {
       break;
     }
     case 'scale-degrees': {
-      const degree = target.degree ?? 1 + Math.floor(random() * 7);
+      const degree = target.degree ?? choose(random, [1, 3, 5]);
       Object.assign(exercise, {
         kind: 'degree',
         prompt:
-          'After the major-key cadence, which scale degree is the single note? Use 1 to 7 or movable-do solfege.',
+          'After the major-key cadence, is the single note do, mi, or sol: scale degree 1, 3, or 5?',
         expected: { degree },
         required: ['degree'],
         label: `Scale degree ${degree}`,
@@ -239,12 +308,13 @@ export function createExercise(options: {
       break;
     }
     case 'scales':
-    case 'modes': {
-      const scale = target.scale ?? choose<ScaleId>(random, scalePools[skillId]);
+    case 'modes':
+    case 'minor-modes': {
+      const scale = target.scale ?? choose<ScaleId>(random, scalePools[skillId]!);
       const definition = scales[scale];
       Object.assign(exercise, {
         kind: 'scale',
-        prompt: `Identify the ${skillId === 'modes' ? 'mode or symmetrical scale' : 'scale'}. Its tonic sounds first.`,
+        prompt: `Identify the ${skillId === 'scales' ? 'minor scale' : 'mode'}. Its tonic sounds first.`,
         cue: `Tonic ${noteName(root)}. Name the scale.`,
         expected: { scale },
         required: ['scale'],
@@ -266,12 +336,13 @@ export function createExercise(options: {
         instrument,
       );
       if (target.format === 'compare') {
-        exercise.task = { kind: 'compare-scale' };
-        exercise.prompt = `First ${noteName(root)} major, then a second scale on the same tonic. Name the second scale.`;
+        const referenceScale = skillId === 'minor-modes' ? 'naturalMinor' : 'major';
+        exercise.task = { kind: 'compare-scale', referenceScale };
+        exercise.prompt = `First ${noteName(root)} ${scales[referenceScale].name}, then a second scale on the same tonic. Name the second scale.`;
         exercise.cue = exercise.prompt;
         exercise.audio = audio(
           [
-            ...scales.major.steps.map((step, index) =>
+            ...scales[referenceScale].steps.map((step, index) =>
               event(rootMidi + step, 0.1 + index * 0.32, 0.28, 'reference'),
             ),
             ...definition.steps.map((step, index) =>
@@ -322,9 +393,11 @@ export function createExercise(options: {
       );
       break;
     }
+    case 'cadences':
     case 'progressions':
     case 'jazz-progressions': {
-      const jazz = skillId === 'jazz-progressions';
+      const guided = guidedProgressions.includes(skillId);
+      const jazz = guided || skillId === 'jazz-progressions';
       const movement: Record<number, number[]> = {
         1: [2, 3, 4, 5, 6],
         2: [5, 7],
@@ -334,10 +407,24 @@ export function createExercise(options: {
         6: [2, 4, 5],
         7: [1, 3],
       };
-      const length = target.length ?? choose(random, [3, 4, 5]);
-      const progression = [choose(random, [1, 2, 4, 6])];
-      while (progression.length < length)
-        progression.push(choose(random, movement[progression[progression.length - 1]!]!));
+      const length =
+        target.length ?? (skillId === 'cadences' ? 3 : guided ? 4 : choose(random, [3, 4, 5]));
+      let progression: number[];
+      if (guided) {
+        let paths = [[1], [2], [4], [6]];
+        while (paths[0]!.length < length)
+          paths = paths.flatMap((path) =>
+            movement[path.at(-1)!]!.filter((degree) =>
+              path.length === length - 1 ? [1, 5].includes(degree) : [2, 4, 5, 6].includes(degree),
+            ).map((degree) => [...path, degree]),
+          );
+        if (target.degree !== undefined) paths = paths.filter((path) => path[1] === target.degree);
+        progression = choose(random, paths);
+      } else {
+        progression = [choose(random, [1, 2, 4, 6])];
+        while (progression.length < length)
+          progression.push(choose(random, movement[progression.at(-1)!]!));
+      }
       const qualities: ChordQuality[] = jazz
         ? ['major7', 'minor7', 'minor7', 'major7', 'dominant7', 'minor7', 'halfDiminished7']
         : ['major', 'minor', 'minor', 'major', 'major', 'minor', 'diminished'];
@@ -376,11 +463,18 @@ export function createExercise(options: {
     default:
       throw new Error(`No generator implemented for ${skillId}.`);
   }
-  if (target.format === 'complete') {
+  if (target.format === 'complete' || guidedProgressions.includes(skillId)) {
     const sequence =
       exercise.kind === 'melody' ? exercise.expected.melody : exercise.expected.progression;
     if (!sequence) throw new Error('Completion is supported only for a musical sequence.');
-    sequenceTask(exercise, 1 + Math.floor(random() * (sequence.length - 1)));
+    sequenceTask(
+      exercise,
+      guidedProgressions.includes(skillId)
+        ? target.gapCount === 2
+          ? [1, 2]
+          : [1]
+        : 1 + Math.floor(random() * (sequence.length - 1)),
+    );
   }
   return exercise;
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { answerSchema, skillIdSchema } from '../../shared/schemas/course.js';
+import { answerSchema, activeSkillIdSchema as skillIdSchema } from '../../shared/schemas/course.js';
 import type { ActionEffect, ReplyPurpose } from './action.types.js';
 import type { SkillId, AnswerField } from '../../shared/types/course.js';
 import type { Settings, Transcript } from '../../shared/types/user.js';
@@ -146,9 +146,7 @@ export type PresentationPart =
   | { kind: 'instruction'; text?: string }
   | {
       kind: 'teaching';
-      title: string;
       explanation: string;
-      demoLabel: string | null;
       awaitingPractice: boolean;
       section?: 'welcome';
     }

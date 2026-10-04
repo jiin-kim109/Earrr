@@ -37,6 +37,8 @@ export const controlledCoachScript = `(() => {
     close() { this.connectionState = 'closed'; }
   };
   window.earrrCoachFixture = {
+    disconnect: () => channel?.close(),
+    fail: () => channel?.emit({ type: 'error', error: { code: 'server_error', message: 'Fixture realtime failure.' } }),
     ready: () => Boolean(channel?.active),
     delta: text => {
       if (!channel?.active) throw new Error('No response is active.');

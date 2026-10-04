@@ -59,7 +59,8 @@ try {
     [
       resolve('node_modules', 'vitest', 'vitest.mjs'),
       'run',
-      'tests\\storage.test.ts',
+      'tests/storage.test.ts',
+      'tests/logging.test.ts',
       '--reporter=dot',
     ],
     {

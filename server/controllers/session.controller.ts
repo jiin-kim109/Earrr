@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requestGame, reply, acknowledge } from '../request-context.js';
 import type { Config } from '../config/environment.js';
 import { diagnosticCodes } from '../errors/app-error.js';
+import { Log } from '../services/log.service.js';
 
 const connectionSchema = z
   .object({
@@ -37,6 +38,7 @@ export function sessionRoutes(config: Config, fetcher: typeof fetch) {
       fetcher,
       req.ip ?? 'local',
     );
+    Log.event('realtime.connect_completed', {}, { sessionId });
     reply(res, { answer, sessionId });
   });
   router.get('/diagnostics', async (_req, res) =>

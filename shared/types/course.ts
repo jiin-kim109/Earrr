@@ -18,6 +18,7 @@ export type ExerciseKind =
   | 'direction'
   | 'pitch'
   | 'degree'
+  | 'function'
   | 'interval'
   | 'chord'
   | 'scale'
@@ -44,6 +45,13 @@ export interface TeachingStep {
   narration: string;
   demoLabel?: string;
   audio?: AudioPlan;
+  examples?: Array<{
+    title: string;
+    narration: string;
+    audio: AudioPlan;
+    root?: number;
+    quality?: ChordQuality;
+  }>;
 }
 
 export interface Skill {

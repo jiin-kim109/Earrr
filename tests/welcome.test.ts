@@ -27,7 +27,7 @@ describe('brief unscored section 00 Welcome', () => {
   it('has one short greeting and a next-section question, without music, grades or mastery', async () => {
     const result = await welcome();
     expect(game.exercises.curriculum().welcome).toMatchObject({ number: 0, name: 'Welcome' });
-    expect(game.exercises.curriculum().lessons).toHaveLength(21);
+    expect(game.exercises.curriculum().lessons).toHaveLength(29);
     expect(result.teaching).toMatchObject({
       section: 'welcome',
       stepId: 'welcome',

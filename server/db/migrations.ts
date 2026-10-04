@@ -58,7 +58,7 @@ export async function initializeSchema(db: Database): Promise<number> {
       id TEXT PRIMARY KEY,
       exercise_id TEXT NOT NULL REFERENCES exercises(id)
     );
-    CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id = 1), skill_id TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id = 1), skill_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 2);
     CREATE TABLE IF NOT EXISTS lesson_completions (skill_id TEXT PRIMARY KEY, completed_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lesson_introductions (
       skill_id TEXT PRIMARY KEY,
@@ -246,7 +246,7 @@ export async function migrateLegacyData(store: Store, version: number, now: () =
       `);
       const progress = new ProgressService(store, now);
       for (const skill of skills) {
-        const ended = await progress.closeUnreachableRound(skill.id);
+        const ended = await progress.closeResolvedRound(skill.id);
         const session = await store.sessions.active();
         if (ended && session?.focus === skill.id) {
           await store.sessions.save({
@@ -294,5 +294,11 @@ export async function migrateLegacyData(store: Store, version: number, now: () =
       await store.conversations.initialize();
       await store.db.exec('PRAGMA user_version = 12');
     });
+  }
+  if (version < 13) {
+    const columns = await store.db.prepare('PRAGMA table_info(course)').all();
+    if (!columns.some((column) => column.name === 'revision'))
+      await store.db.exec('ALTER TABLE course ADD COLUMN revision INTEGER NOT NULL DEFAULT 1');
+    await store.db.exec('PRAGMA user_version = 13');
   }
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Log } from '../lib/log.js';
 import type { Snapshot, ToolName, ToolResult } from '../../server/types/agent.types.js';
 import type { Transcript } from './types.js';
 import type {
@@ -41,7 +42,7 @@ interface Handlers {
     complete: boolean,
     interrupted?: boolean,
   ) => void;
-  error: (message: string) => void;
+  error: (error: unknown) => void;
 }
 
 export class Conversation {
@@ -58,6 +59,7 @@ export class Conversation {
   private readonly commits = new Set<string>();
   private readonly events = new Set<string>();
   private actionCount = 0;
+  private section = 0;
 
   constructor(
     private readonly connection: RealtimeConnection,
@@ -66,6 +68,7 @@ export class Conversation {
 
   reset() {
     this.generation++;
+    this.section++;
     this.turn++;
     this.active = null;
     this.queued = null;
@@ -114,6 +117,9 @@ export class Conversation {
     this.request('auto');
   }
   async action(name: ToolName, args: Record<string, unknown> = {}) {
+    if (['select_lesson', 'show_welcome', 'teach_lesson', 'start_practice'].includes(name))
+      this.section++;
+    const section = this.section;
     const turn = this.begin();
     const generation = this.generation;
     const release = await this.acquire();
@@ -121,7 +127,7 @@ export class Conversation {
     try {
       if (turn !== this.turn || generation !== this.generation) return;
       const result = await this.handlers.execute(name, args, crypto.randomUUID());
-      if (generation !== this.generation) return;
+      if (generation !== this.generation || section !== this.section) return;
       this.handlers.result(result);
       this.connection.message(result.agent.update, 'system');
       if (turn === this.turn) {
@@ -130,9 +136,7 @@ export class Conversation {
         if (!silent) this.request('none', result);
       }
     } catch (error) {
-      this.handlers.error(
-        error instanceof Error ? error.message : 'The action could not be completed.',
-      );
+      this.handlers.error(error);
     } finally {
       release();
     }
@@ -158,6 +162,7 @@ export class Conversation {
       id: crypto.randomUUID(),
       turn: this.turn,
       tools,
+      section: this.section,
       ...(result?.agent.presentation ? { presentation: result.agent.presentation } : {}),
     };
     const speaking = [...this.responses.values()].some(
@@ -177,6 +182,11 @@ export class Conversation {
   private voiceTurn(id: string) {
     let turn = this.voiceTurns.get(id);
     if (turn === undefined) {
+      Log.event('voice.input_started', {
+        overlapsTutor: [...this.responses.values()].some(
+          (run) => run.request.turn === this.turn && run.audio && !run.drained && !run.settled,
+        ),
+      });
       turn = this.begin();
       this.voiceTurns.set(id, turn);
       this.handlers.message('user', 'Listening…', `user:${id}`, false);
@@ -221,6 +231,8 @@ export class Conversation {
         break;
       case 'response.created': {
         if (!this.active || !event.response) return;
+        const requested = event.response.metadata?.earrr_request;
+        if (requested && requested !== this.active.request.id) return;
         if (this.responses.has(event.response.id)) return;
         const request = this.active.request;
         this.active.id = event.response.id;
@@ -267,7 +279,12 @@ export class Conversation {
         }
         break;
       case 'output_audio_buffer.cleared':
-        if (run && !run.settled) {
+        if (
+          run &&
+          run.request.turn === this.turn &&
+          run.request.section === this.section &&
+          !run.settled
+        ) {
           run.settled = true;
           if (run.text)
             this.handlers.message('assistant', run.text, `assistant:${run.id}`, true, true);
@@ -329,6 +346,7 @@ export class Conversation {
 
   private async execute(calls: RealtimeItem[], record: ResponseRun) {
     const generation = this.generation;
+    let section = record.request.section;
     const release = await this.acquire();
     let failed = false;
     let needsReply = false;
@@ -351,10 +369,15 @@ export class Conversation {
               `The coach requested an unknown tool: ${call.name ?? '(missing name)'}.`,
             );
           const args = z.record(z.string(), z.unknown()).parse(JSON.parse(call.arguments ?? '{}'));
+          if (['select_lesson', 'show_welcome', 'teach_lesson', 'start_practice'].includes(name)) {
+            this.section++;
+            section = this.section;
+          }
           const result = await this.handlers.execute(name, args, call.call_id);
           if (generation !== this.generation || !this.connection.connected) return;
-          this.handlers.result(result);
           this.connection.functionResult(call.call_id, result.agent.context);
+          if (section !== this.section) continue;
+          this.handlers.result(result);
           needsReply ||= result.reply !== 'none';
           if (result.reply !== 'none') replyResults.push(result);
           if (record.request.turn === this.turn) {
@@ -435,8 +458,7 @@ export class Conversation {
           this.handlers.snapshot()?.session?.status === 'paused' ? 'paused' : 'listening',
         );
     } catch (error) {
-      if (current())
-        this.handlers.error(error instanceof Error ? error.message : 'Playback could not finish.');
+      if (current()) this.handlers.error(error);
     } finally {
       release();
     }

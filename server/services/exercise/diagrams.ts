@@ -8,16 +8,9 @@ import type {
   TeachingStep,
 } from '../../../shared/types/course.js';
 import type { Exercise, MusicalDiagram } from '../../types/exercise.types.js';
-import { chords, noteName, pitchClass, scales } from './music.js';
-import { chordFoundation, functionLabel } from './tasks.js';
+import { chords, chordSymbol, noteName, pitchClass, scales } from './music.js';
+import { chordFoundation, functionLabel, missingPositions } from './tasks.js';
 
-const chordDiagrams: readonly SkillId[] = [
-  'seventh-chords',
-  'seventh-colors',
-  'added-tones',
-  'extensions',
-  'altered-dominants',
-];
 const tonalDiagrams: readonly SkillId[] = [
   'scale-degrees',
   'scales',
@@ -25,6 +18,10 @@ const tonalDiagrams: readonly SkillId[] = [
   'melodies',
   'progressions',
   'jazz-progressions',
+  'minor-modes',
+  'major-functions',
+  'minor-functions',
+  'cadences',
 ];
 const degrees: Record<number, string> = {
   0: '1',
@@ -98,9 +95,9 @@ function scaleToneLabel(distance: number, scale?: ScaleId): string {
 function diagram(
   skillId: SkillId,
   audio: AudioPlan,
-  options: { rootMidi?: number; quality?: ChordQuality; scale?: ScaleId; targetIndex?: number },
+  options: { rootMidi?: number; scale?: ScaleId; targetIndex?: number },
 ): MusicalDiagram | undefined {
-  if (!chordDiagrams.includes(skillId) && !tonalDiagrams.includes(skillId)) return undefined;
+  if (!tonalDiagrams.includes(skillId)) return undefined;
   const notes = audio.events
     .filter((note) => note.role === 'exercise')
     .sort((a, b) => a.at - b.at || a.midi - b.midi);
@@ -109,15 +106,6 @@ function diagram(
   const root = options.rootMidi ?? references[0]?.midi;
   if (root === undefined) throw new Error('The musical diagram has no established root.');
   const tonic = `${noteName(root)} major`;
-  if (chordDiagrams.includes(skillId)) {
-    if (!options.quality) throw new Error('The chord diagram needs its deterministic quality.');
-    return {
-      kind: 'chord',
-      root: noteName(root),
-      symbol: `${noteName(root)}${chords[options.quality].suffix}`,
-      tones: chordTones(notes, root, options.quality),
-    };
-  }
   if (skillId === 'scale-degrees') {
     const target = notes[0]!;
     if (notes.length !== 1) throw new Error('A scale-degree question must have one target note.');
@@ -130,7 +118,7 @@ function diagram(
       note: spelledNote(target.midi, root, String(degree)),
     };
   }
-  if (skillId === 'scales' || skillId === 'modes') {
+  if (skillId === 'scales' || skillId === 'modes' || skillId === 'minor-modes') {
     return {
       kind: 'scale',
       tonic: `${noteName(root)} tonic`,
@@ -152,10 +140,6 @@ function diagram(
       ...(options.targetIndex !== undefined ? { targetIndex: options.targetIndex } : {}),
     };
   }
-  const jazz = skillId === 'jazz-progressions';
-  const qualities: readonly ChordQuality[] = jazz
-    ? ['major7', 'minor7', 'minor7', 'major7', 'dominant7', 'minor7', 'halfDiminished7']
-    : ['major', 'minor', 'minor', 'major', 'major', 'minor', 'diminished'];
   const groups = new Map<number, NoteEvent[]>();
   for (const note of notes) {
     const group = groups.get(note.at);
@@ -168,12 +152,19 @@ function diagram(
     chords: [...groups.values()].map((group) => {
       const bass = Math.min(...group.map((note) => note.midi));
       const degree = scaleDegree(bass, root);
-      const quality = qualities[degree - 1]!;
+      const quality = chordQualities.find((id) => {
+        const actual = [...new Set(group.map((note) => pitchClass(note.midi - bass)))].sort(
+          (a, b) => a - b,
+        );
+        const expected = [...new Set(chords[id].intervals.map(pitchClass))].sort((a, b) => a - b);
+        return actual.join() === expected.join();
+      });
+      if (!quality) throw new Error('The progression contains an unknown played chord.');
       const tones = chordTones(group, bass, quality);
       const chordRoot = spelledNote(bass, root, String(degree)).replace(/-?\d+$/, '');
       return {
-        symbol: `${chordRoot}${chords[quality].suffix}`,
-        function: functionLabel(degree, jazz),
+        symbol: `${chordRoot}${chords[quality].suffix}`.replace(/[()]/g, ''),
+        function: functionLabel(degree, group.length >= 4),
         midi: tones.map((tone) => tone.midi),
         notes: tones.map((tone) => tone.note),
       };
@@ -183,17 +174,33 @@ function diagram(
 }
 
 export function exerciseDiagram(exercise: Exercise) {
-  return diagram(exercise.skillId, exercise.audio, {
+  const result = diagram(exercise.skillId, exercise.audio, {
     rootMidi: (exercise.register + 1) * 12 + exercise.root,
-    quality: exercise.expected.quality,
     scale: exercise.expected.scale,
     ...(exercise.task?.kind === 'complete' ? { targetIndex: exercise.task.gapIndex } : {}),
   });
+  const gaps = missingPositions(exercise);
+  return result && result.kind === 'progression' && gaps.length
+    ? { ...result, targetIndices: gaps }
+    : result;
 }
 
 export function teachingDiagram(skillId: SkillId, step: TeachingStep) {
   if (!step.audio) return undefined;
-  const quality = chordQualities.find((value) => step.id.startsWith(`${value}-`));
   const scale = scaleIds.find((value) => value === step.id);
-  return diagram(skillId, step.audio, { ...(quality ? { rootMidi: 60, quality } : {}), scale });
+  return diagram(skillId, step.audio, { scale });
+}
+
+export function chordFacts(audio: AudioPlan, root: number, quality: ChordQuality) {
+  const notes = audio.events
+    .filter((note) => note.role === 'exercise')
+    .sort((a, b) => a.at - b.at || a.midi - b.midi);
+  const tones = chordTones(notes, root, quality);
+  const bass = tones.reduce((lowest, tone) => (tone.midi < lowest.midi ? tone : lowest));
+  const inversion =
+    pitchClass(bass.midi) !== pitchClass(root) ? `/${bass.note.replace(/-?\d+$/, '')}` : '';
+  return {
+    symbol: `${chordSymbol(root, quality)}${inversion}`,
+    notes: tones.map((tone) => tone.note),
+  };
 }

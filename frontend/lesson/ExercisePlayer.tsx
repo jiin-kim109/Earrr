@@ -32,7 +32,11 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
       : undefined;
   const noteSummary = played?.notes.join(played.presentation === 'together' ? ' + ' : ' → ');
   const short = useShortDisplay();
-  const dense = compact && short && Boolean(played?.diagram || question);
+  const dense = compact && short && Boolean(played?.diagram || played?.symbol || question);
+  const score = Boolean(
+    (played?.diagram && ['scale', 'melody', 'progression'].includes(played.diagram.kind)) ||
+      (question?.kind === 'sequence' && question.notation),
+  );
   const title = round
     ? round.passed
       ? 'Round passed'
@@ -87,11 +91,18 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
                   ? {
                       height: dense
                         ? '3.5rem'
-                        : evidence?.example.diagram || question
-                          ? 'clamp(5.5rem, calc(var(--app-height, 100dvh) * 0.16), 8rem)'
-                          : 'clamp(2.25rem, calc(var(--app-height, 100dvh) * 0.14 - 2.5rem), 7rem)',
+                        : score
+                          ? 'clamp(5.5rem, calc(var(--app-height, 100dvh) * 0.18), 9.5rem)'
+                          : evidence?.example.diagram || evidence?.example.symbol || question
+                            ? 'clamp(5.5rem, calc(var(--app-height, 100dvh) * 0.16), 8rem)'
+                            : 'clamp(2.25rem, calc(var(--app-height, 100dvh) * 0.14 - 2.5rem), 7rem)',
                     }
-                  : undefined
+                  : score
+                    ? {
+                        height:
+                          'clamp(10rem, calc(var(--app-height, 100dvh) * 0.25 - 2rem), 13rem)',
+                      }
+                    : undefined
               }
             >
               {evidence ? (
@@ -132,7 +143,7 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
             data-testid="lesson-content"
             className="flex w-full shrink-0 flex-col items-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150 motion-safe:ease-out-expo motion-reduce:animate-none"
           >
-            {!welcome && (
+            {!welcome && !(reveal?.example?.symbol && !round) && (
               <div
                 className={cn(
                   dense ? 'sr-only' : 'flex items-center gap-2.5',
@@ -167,6 +178,7 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
               data-testid={round ? 'round-result' : undefined}
               className={cn(
                 'font-medium tracking-tight',
+                reveal?.example?.symbol && !round && 'sr-only',
                 dense
                   ? 'text-base leading-tight'
                   : compact
@@ -174,11 +186,13 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
                     : 'text-[28px] leading-tight',
                 round && (round.passed ? 'text-success' : 'text-destructive'),
               )}
-              aria-live={snapshot.settings.volume === 0 ? 'polite' : 'off'}
+              aria-live={
+                (snapshot.settings.voiceVolume ?? snapshot.settings.volume) === 0 ? 'polite' : 'off'
+              }
             >
               {dense && question ? question.instruction : title}
             </h2>
-            {evidence && !played?.diagram && (
+            {evidence && !played?.diagram && !played?.symbol && (
               <div
                 data-testid={teaching ? 'teaching-example' : 'grade-feedback'}
                 data-feedback-id={reveal?.attemptId ?? undefined}
@@ -214,7 +228,7 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
                 {current.prompt}
               </p>
             )}
-            {teaching && snapshot.settings.volume === 0 && (
+            {teaching && (snapshot.settings.voiceVolume ?? snapshot.settings.volume) === 0 && (
               <p className="mt-3 max-w-[46ch] text-sm text-muted-foreground">
                 {teaching.narration}
               </p>

@@ -84,7 +84,7 @@ describe('one-lesson course and honest checkpoints', () => {
           name,
           arguments: name === 'select_lesson' ? { skillId: 'extensions' } : { focus: 'extensions' },
         }),
-      ).rejects.toThrow('Added tones exercises with 8/10');
+      ).rejects.toThrow('Sixth chords exercises with 8/10');
     }
     await expect(
       game.execute({
@@ -137,7 +137,7 @@ describe('one-lesson course and honest checkpoints', () => {
 
   it('counts each correct answer once while tracking hint use separately for mastery', async () => {
     const sessionId = await begin();
-    for (let index = 0; index < 10; index++) {
+    for (let index = 0; index < 8; index++) {
       const exercise = await play(sessionId);
       await game.execute({
         callId: randomUUID(),
@@ -167,11 +167,16 @@ describe('one-lesson course and honest checkpoints', () => {
       });
     }
     const state = await game.snapshot();
-    expect(state.totalAnswers).toBe(10);
+    expect(state.totalAnswers).toBe(8);
     expect(state.course.round.correct).toBe(0);
     expect(state.course.lessons[0]?.status).toBe('completed');
     expect(state.course.round.answers).toHaveLength(0);
-    expect(state.course.round.previous).toMatchObject({ number: 1, correct: 10, passed: true });
+    expect(state.course.round.previous).toMatchObject({
+      number: 1,
+      correct: 8,
+      answered: 8,
+      passed: true,
+    });
     expect(
       state.progress.find((item) => item.skillId === 'pitch-direction')?.unassistedCorrect,
     ).toBe(0);

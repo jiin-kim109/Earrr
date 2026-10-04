@@ -18,11 +18,9 @@ describe('concise tutorials with stable saved positions', () => {
       expect(new Set(steps.map((step) => step.id)).size).toBe(steps.length);
     }
     expect(teachingSteps('intervals-foundation', 'piano')).toHaveLength(7);
-    expect(teachingSteps('intervals-chromatic', 'piano').filter((step) => step.audio)).toHaveLength(
-      7,
-    );
-    expect(teachingSteps('triad-colors', 'piano').filter((step) => step.audio)).toHaveLength(4);
-    expect(teachingSteps('triad-inversions', 'piano').filter((step) => step.audio)).toHaveLength(4);
+    expect(skills.some((skill) => skill.id === 'intervals-chromatic')).toBe(false);
+    expect(teachingSteps('triad-colors', 'piano').filter((step) => step.audio)).toHaveLength(2);
+    expect(teachingSteps('triad-inversions', 'piano').filter((step) => step.audio)).toHaveLength(3);
     expect(teachingSteps('seventh-colors', 'piano').filter((step) => step.audio)).toHaveLength(3);
     expect(teachingSteps('added-tones', 'piano').some((step) => step.id === 'add2-0')).toBe(false);
   });
@@ -46,9 +44,8 @@ describe('concise tutorials with stable saved positions', () => {
     ['intervals-foundation', 6, 'octave'],
     ['intervals-foundation', 3, 'perfect-fourth'],
     ['intervals-foundation', 8, 'ready-for-practice'],
-    ['intervals-chromatic', 3, 'tritone'],
     ['triad-colors', 2, 'diminished-0'],
-    ['triad-inversions', 4, 'minor-1'],
+    ['triad-inversions', 4, 'ready-for-practice'],
     ['added-tones', 3, 'add9-0'],
   ] satisfies Array<[SkillId, number, string]>)(
     'restores legacy %s position %i as %s',

@@ -45,9 +45,7 @@ export function actionMessage(effect: ActionEffect, options: { hasNextLesson: bo
 export function presentationInstructions(
   purpose: Exclude<ReplyPurpose, 'none'>,
 ): string | undefined {
-  return purpose === 'feedback' || purpose === 'cue'
-    ? render('reply', { purpose, scoped: true })
-    : undefined;
+  return purpose !== 'message' ? render('reply', { purpose, scoped: true }) : undefined;
 }
 
 export function agentInstructions(snapshot: Snapshot): string {
@@ -151,9 +149,7 @@ export function presentationContext(result: ResultData): { parts: PresentationPa
   if (result.teaching) {
     parts.push({
       kind: 'teaching',
-      title: result.teaching.title,
       explanation: result.teaching.narration,
-      demoLabel: result.teaching.demoLabel,
       awaitingPractice: result.teaching.awaitingPractice,
       ...(result.teaching.section ? { section: result.teaching.section } : {}),
     });

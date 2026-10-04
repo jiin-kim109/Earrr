@@ -355,7 +355,7 @@ for (const connection of backends) {
                 .get()
             )?.user_version,
           ),
-        ).toBe(12);
+        ).toBe(13);
       } finally {
         await cleanup();
       }

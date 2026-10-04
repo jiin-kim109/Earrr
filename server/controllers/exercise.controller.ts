@@ -4,6 +4,7 @@ import { requestGame, reply, acknowledge } from '../request-context.js';
 import { AppError } from '../errors/app-error.js';
 import { parseSoloAnswer } from '../services/grading.service.js';
 import { instrumentSchema, skillIdSchema } from '../../shared/schemas/course.js';
+import { Log, logToolResult } from '../services/log.service.js';
 
 const teachingDeliverySchema = z
   .object({
@@ -76,6 +77,12 @@ export function exerciseRoutes() {
         payload: { exerciseId: input.exerciseId },
       });
     });
+    Log.context({ sessionId: input.sessionId });
+    Log.event(
+      'audio.played',
+      { questionId: input.exerciseId, receiptId: input.id },
+      { sessionId: input.sessionId },
+    );
     acknowledge(res);
   });
 
@@ -99,6 +106,7 @@ export function exerciseRoutes() {
         arguments: { exerciseId: exercise.id, answer },
       });
     });
+    logToolResult({ ...input, name: 'submit_answer' }, result);
     reply(res, result);
   });
   router.post('/teaching/delivered', async (req, res) => {
@@ -121,6 +129,12 @@ export function exerciseRoutes() {
     if (!delivered) {
       throw AppError.create('stale_teaching_delivery');
     }
+    Log.context({ sessionId: input.sessionId });
+    Log.event(
+      'teaching.delivered',
+      { presentationId: input.presentationId },
+      { sessionId: input.sessionId },
+    );
     reply(res, await game.snapshot());
   });
 

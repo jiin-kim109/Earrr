@@ -13,7 +13,10 @@ import { createApp } from '../server/app.js';
 import { WorkspaceDirectory } from '../server/services/storage/workspace.js';
 import { CloudRepository } from '../server/repositories/cloud.repository.js';
 
-const migration = readFileSync('supabase\\migrations\\20261004001000_earrr_raw_events.sql', 'utf8');
+const migration = readFileSync(
+  new URL('../supabase/migrations/20261004001000_earrr_raw_events.sql', import.meta.url),
+  'utf8',
+);
 const config = {
   port: 3101,
   databasePath: ':memory:',

@@ -20,7 +20,6 @@ vi.mock('../frontend/audio/audio.js', () => ({
     stop = vi.fn();
     detachVoice = vi.fn();
     setVolume = vi.fn();
-    setVoiceVolume = vi.fn();
     attachMicrophone = vi.fn();
     play = vi.fn(async () => true);
     unlock = vi.fn(async () => undefined);

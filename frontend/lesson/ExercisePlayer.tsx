@@ -186,9 +186,7 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
                     : 'text-[28px] leading-tight',
                 round && (round.passed ? 'text-success' : 'text-destructive'),
               )}
-              aria-live={
-                (snapshot.settings.voiceVolume ?? snapshot.settings.volume) === 0 ? 'polite' : 'off'
-              }
+              aria-live={snapshot.settings.volume === 0 ? 'polite' : 'off'}
             >
               {dense && question ? question.instruction : title}
             </h2>
@@ -228,7 +226,7 @@ export function ExercisePlayer({ compact = false }: { compact?: boolean }) {
                 {current.prompt}
               </p>
             )}
-            {teaching && (snapshot.settings.voiceVolume ?? snapshot.settings.volume) === 0 && (
+            {teaching && snapshot.settings.volume === 0 && (
               <p className="mt-3 max-w-[46ch] text-sm text-muted-foreground">
                 {teaching.narration}
               </p>

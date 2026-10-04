@@ -17,12 +17,10 @@ export function InstrumentPicker({
   badge = false,
   instrument: current,
   disabled = false,
-  showLabel = true,
 }: {
   badge?: boolean;
   instrument: InstrumentName;
   disabled?: boolean;
-  showLabel?: boolean;
 }) {
   const id = useId();
   return (
@@ -33,11 +31,9 @@ export function InstrumentPicker({
           : 'inline-flex items-center gap-2',
       )}
     >
-      {showLabel && (
-        <Label htmlFor={id} className="text-sm font-medium text-foreground">
-          Instrument sound
-        </Label>
-      )}
+      <Label htmlFor={id} className="text-sm font-medium text-foreground">
+        Instrument sound
+      </Label>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

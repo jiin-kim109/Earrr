@@ -65,7 +65,6 @@ const http = createServer(app);
 const entrySettings = `<script id="earrr-entry-settings" type="application/json">${JSON.stringify({
   instrument: defaultSettings.instrument,
   volume: defaultSettings.volume,
-  voiceVolume: defaultSettings.voiceVolume,
 })}</script>`;
 const withEntrySettings = (html: string) => html.replace('</head>', `${entrySettings}</head>`);
 

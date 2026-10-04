@@ -235,7 +235,7 @@ describe('audio-clock scheduling and cancellation', () => {
       expect(player.setSinkId).toHaveBeenLastCalledWith('headset');
     });
 
-    it('controls tutor speech independently from instrument output without changing defaults', async () => {
+    it('uses the same volume for remote speech and instrument output', async () => {
       const player = new Player();
       vi.stubGlobal('AudioContext', Context);
       vi.stubGlobal('HTMLMediaElement', Player);
@@ -252,11 +252,18 @@ describe('audio-clock scheduling and cancellation', () => {
       expect(player.srcObject).toBe(stream);
       expect(player.autoplay).toBe(true);
       expect(player.muted).toBe(false);
-      expect(player.volume).toBe(0.8);
-      engine.setVoiceVolume(0.6);
+      expect(player.volume).toBe(0.4);
+      engine.setVolume(0.6);
       expect(player.volume).toBe(0.6);
       expect(Context.current.gains[0]!.gain.setTargetAtTime).toHaveBeenLastCalledWith(
-        0.4,
+        0.6,
+        Context.current.currentTime,
+        0.025,
+      );
+      engine.setVolume(0);
+      expect(player.volume).toBe(0);
+      expect(Context.current.gains[0]!.gain.setTargetAtTime).toHaveBeenLastCalledWith(
+        0,
         Context.current.currentTime,
         0.025,
       );
@@ -283,7 +290,7 @@ describe('audio-clock scheduling and cancellation', () => {
       expect(blocked).toHaveBeenCalledWith(
         expect.objectContaining({ message: expect.stringContaining('Retry audio') }),
       );
-      engine.setVoiceVolume(0.4);
+      engine.setVolume(0.4);
       await engine.enableVoiceOutput();
       expect(player.volume).toBe(0.4);
       expect(player.play).toHaveBeenCalledTimes(2);

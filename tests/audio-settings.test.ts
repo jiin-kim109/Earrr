@@ -4,17 +4,17 @@ import { resolve, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Store } from '../server/db/database.js';
 import { AgentService } from '../server/services/agent/agent.service.js';
+import { exportLearning, importLearning } from '../server/services/storage/archive.js';
 import { settingsSchema } from '../shared/schemas/user.js';
 
-describe('independent tutor/instrument volumes and two sampled instruments', () => {
-  it('rejects removed sound options and preserves independent mute values', async () => {
+describe('one speaker volume and two sampled instruments', () => {
+  it('rejects removed sound options and preserves zero as a master volume', async () => {
     const store = await Store.open(':memory:');
     try {
       expect(Object.keys(await store.user.getSettings()).sort()).toEqual([
         'instrument',
         'timezone',
         'voice',
-        'voiceVolume',
         'volume',
       ]);
       for (const instrument of ['sine', 'felt', 'electric'])
@@ -25,16 +25,69 @@ describe('independent tutor/instrument volumes and two sampled instruments', () 
         settingsSchema.safeParse({ ...(await store.user.getSettings()), autoAdvance: false })
           .success,
       ).toBe(false);
+      expect(
+        settingsSchema.safeParse({ ...(await store.user.getSettings()), voiceVolume: 0.25 })
+          .success,
+      ).toBe(false);
       await store.user.saveSettings({ ...(await store.user.getSettings()), volume: 0 });
       expect((await store.user.getSettings()).volume).toBe(0);
-      expect((await store.user.getSettings()).voiceVolume).toBe(0.8);
-      await store.user.saveSettings({ ...(await store.user.getSettings()), voiceVolume: 0.25 });
-      expect((await store.user.getSettings()).volume).toBe(0);
-      expect((await store.user.getSettings()).voiceVolume).toBe(0.25);
     } finally {
       await store.close();
     }
   });
+
+  it.each([
+    { volume: 0, voiceVolume: 0.8 },
+    { volume: 0.35, voiceVolume: 0 },
+  ])(
+    'restores split-volume saves using speaker volume $volume without losing the current question',
+    async ({ volume, voiceVolume }) => {
+      const source = await Store.open(':memory:');
+      const restored = await Store.open(':memory:');
+      try {
+        const agent = await AgentService.create(source, false, 'test');
+        const sessionId = (
+          await agent.execute({
+            callId: randomUUID(),
+            name: 'start_session',
+            arguments: { mode: 'solo' },
+          })
+        ).snapshot.session!.id;
+        const first = await agent.execute({
+          callId: randomUUID(),
+          sessionId,
+          name: 'play_exercise',
+          arguments: {},
+        });
+        const settings = { ...(await source.user.getSettings()), instrument: 'guitar', volume };
+        await source.db
+          .prepare('UPDATE settings SET data = ? WHERE id = 1')
+          .run(JSON.stringify({ ...settings, voiceVolume }));
+        expect(await source.user.getSettings()).toEqual(settings);
+        await importLearning(restored, await exportLearning(source));
+        const restoredAgent = await AgentService.create(restored, false, 'test');
+        const snapshot = await restoredAgent.snapshot();
+        expect(snapshot.settings).toEqual(settings);
+        expect(snapshot.current?.id).toBe(first.snapshot.current?.id);
+        const replay = await restoredAgent.execute({
+          callId: randomUUID(),
+          sessionId,
+          name: 'replay_exercise',
+          arguments: {},
+        });
+        expect(replay.audio?.instrument).toBe('guitar');
+        expect(replay.audio?.events).toEqual(first.audio?.events);
+        await restored.user.saveSettings({ ...snapshot.settings, volume: 0.6 });
+        expect(await restored.db.one('SELECT data FROM settings WHERE id = 1')).toEqual({
+          ...settings,
+          volume: 0.6,
+        });
+      } finally {
+        await source.close();
+        await restored.close();
+      }
+    },
+  );
 
   it('changes the instrument without changing the current pitches or ground truth', async () => {
     const store = await Store.open(':memory:');
@@ -114,7 +167,6 @@ describe('independent tutor/instrument volumes and two sampled instruments', () 
       expect((await agent.snapshot()).settings).toEqual({
         instrument: 'piano',
         volume: 0.45,
-        voiceVolume: 0.45,
         voice: 'sage',
         timezone: 'UTC',
       });

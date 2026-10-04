@@ -26,7 +26,6 @@ export function userRoutes() {
     Log.event('settings.changed', {
       instrument: settings.instrument,
       volume: settings.volume,
-      voiceVolume: settings.voiceVolume ?? settings.volume,
       voice: settings.voice,
     });
     reply(res, await game.snapshot());

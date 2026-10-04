@@ -9,20 +9,15 @@ import { Slider } from '@/components/ui/slider';
 import { InstrumentPicker } from '@/instruments/InstrumentPicker';
 import { studio, useStudio } from '@/studio/studio';
 import { AudioNotice } from './AudioNotice.js';
-import type { AudioNoticeSurface } from '@/studio/store';
 
 export function SpeakerSettings({
   volume,
-  voiceVolume = volume,
   scrollable = false,
   pending = false,
-  surface,
 }: {
   volume: number;
-  voiceVolume?: number;
   scrollable?: boolean;
   pending?: boolean;
-  surface: AudioNoticeSurface;
 }) {
   const state = useStudio();
   const id = useId();
@@ -77,38 +72,21 @@ export function SpeakerSettings({
           </div>
         ))}
       </RadioGroup>
-      <AudioNotice surface={surface} />
-      <div className="space-y-3 pt-2">
-        {(
-          [
-            { key: 'voiceVolume', label: 'Tutor voice', value: voiceVolume },
-            { key: 'volume', label: 'Instrument sound', value: volume },
-          ] as const
-        ).map((control) => (
-          <div key={control.key}>
-            <div className="mb-1 flex items-center justify-between gap-3">
-              <Label htmlFor={`${id}-${control.key}`} className="text-sm font-medium">
-                {control.label}
-              </Label>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {Math.round(control.value * 100)}%
-              </span>
-            </div>
-            <Slider
-              id={`${id}-${control.key}`}
-              aria-label={control.label}
-              value={[control.value * 100]}
-              disabled={pending}
-              min={0}
-              max={100}
-              step={5}
-              className="h-6"
-              onValueChange={([value]) => {
-                if (value !== undefined) void studio.updateSettings({ [control.key]: value / 100 });
-              }}
-            />
-          </div>
-        ))}
+      <div className="flex h-8 items-center gap-4">
+        <Slider
+          aria-label="Speaker volume"
+          value={[volume * 100]}
+          disabled={pending}
+          min={0}
+          max={100}
+          step={5}
+          onValueChange={([value]) => {
+            if (value !== undefined) void studio.updateSettings({ volume: value / 100 });
+          }}
+        />
+        <span className="w-8 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+          {Math.round(volume * 100)}%
+        </span>
       </div>
     </section>
   );
@@ -130,7 +108,7 @@ export function AudioSettings() {
           title="Audio settings"
           data-audio-notice={Boolean(notice)}
         >
-          {volume === 0 && (settings.voiceVolume ?? volume) === 0 ? (
+          {volume === 0 ? (
             <VolumeX className={`size-6${notice ? ' text-destructive' : ''}`} />
           ) : (
             <Volume2 className={`size-6${notice ? ' text-destructive' : ''}`} />
@@ -143,13 +121,9 @@ export function AudioSettings() {
         aria-label="Audio settings"
         className="scrollbar-thin scrollbar-thumb-muted-foreground/60 scrollbar-track-transparent max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-1.5rem)] space-y-4 overflow-y-auto rounded-2xl p-5"
       >
-        <SpeakerSettings
-          volume={volume}
-          voiceVolume={settings.voiceVolume}
-          surface="lesson"
-          scrollable
-        />
-        <InstrumentPicker instrument={settings.instrument} badge showLabel={false} />
+        <SpeakerSettings volume={volume} scrollable />
+        <AudioNotice surface="lesson" />
+        <InstrumentPicker instrument={settings.instrument} badge />
       </PopoverContent>
     </Popover>
   );

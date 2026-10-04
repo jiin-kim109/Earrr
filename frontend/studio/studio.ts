@@ -364,7 +364,6 @@ class Studio {
       nextId !== this.state.snapshot?.session?.id ||
       snapshot.course.selectedLesson !== this.state.snapshot?.course.selectedLesson;
     this.audio.setVolume(snapshot.settings.volume);
-    this.audio.setVoiceVolume(snapshot.settings.voiceVolume ?? snapshot.settings.volume);
     const messages = new Map(
       [...(snapshot.transcript ?? []), ...this.state.messages].map((message) => [
         message.id,
@@ -405,14 +404,9 @@ class Studio {
     const surface = this.audioSurface();
     const previous = this.state.snapshot?.settings;
     if (!previous || !this.state.snapshot) return false;
-    const settings = {
-      ...previous,
-      voiceVolume: previous.voiceVolume ?? previous.volume,
-      ...updates,
-    };
+    const settings = { ...previous, ...updates };
     const version = ++this.settingsVersion;
     this.audio.setVolume(settings.volume);
-    this.audio.setVoiceVolume(settings.voiceVolume);
     this.patch({ snapshot: { ...this.state.snapshot, settings } });
     let success = false;
     this.settingsQueue = this.settingsQueue.then(async () => {
@@ -425,7 +419,6 @@ class Studio {
         if (version === this.settingsVersion && this.state.snapshot) {
           this.patch({ snapshot: { ...this.state.snapshot, settings: previous } });
           this.audio.setVolume(previous.volume);
-          this.audio.setVoiceVolume(previous.voiceVolume ?? previous.volume);
         }
         this.reportAudioError(error, surface);
       }

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page, APIRequestContext } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import type { Snapshot, ToolResult } from '../../server/types/agent.types.js';
 import { intervalNames } from '../../server/services/exercise/music.js';
 import { sampleFor } from '../../frontend/audio/samples.js';
@@ -187,9 +188,8 @@ test('shows only essential setup without capturing a microphone whose permission
     page.getByTestId('setup-music').getByText('Instrument sound', { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Speakers', exact: true })).toBeVisible();
-  await expect(page.getByRole('slider', { name: 'Tutor voice', exact: true })).toHaveCount(1);
-  await expect(page.getByRole('slider', { name: 'Instrument sound', exact: true })).toHaveCount(1);
-  await expect(page.getByRole('slider')).toHaveCount(2);
+  await expect(page.getByRole('slider', { name: 'Speaker volume', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('slider')).toHaveCount(1);
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await expect(page.getByTestId('instrument-piano').locator('svg text')).toHaveCount(0);
   const instrumentBox = (await page
@@ -648,6 +648,8 @@ test('combines speaker, master volume and fixed-size instrument controls without
   await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
   const popup = page.getByRole('dialog', { name: 'Audio settings', exact: true });
   await expect(popup.getByRole('radiogroup', { name: 'Speakers', exact: true })).toBeVisible();
+  await expect(popup.getByText('Instrument sound', { exact: true })).toBeVisible();
+  await expect(popup.getByRole('slider')).toHaveCount(1);
   const popupBefore = (await popup.boundingBox())!;
   const pickerBefore = (await popup
     .getByRole('button', { name: /^Change instrument:/ })
@@ -666,7 +668,7 @@ test('combines speaker, master volume and fixed-size instrument controls without
   expect(await popup.boundingBox()).toEqual(popupBefore);
   expect(await page.getByTestId('lesson-toolbar').boundingBox()).toEqual(toolbar);
   await expect(page.getByTestId('instrument-guitar').first().getByRole('button')).toHaveCount(0);
-  const volume = popup.getByRole('slider', { name: 'Instrument sound', exact: true });
+  const volume = popup.getByRole('slider', { name: 'Speaker volume', exact: true });
   await volume.focus();
   await page.keyboard.press('Home');
   await expect
@@ -712,57 +714,62 @@ for (const viewport of [
   });
 }
 
-test('keeps tutor and instrument volume independent in setup and in-game settings', async ({
-  page,
-  request,
-}) => {
-  await page.goto('/');
-  const tutor = page.getByRole('slider', { name: 'Tutor voice', exact: true });
-  const instrument = page.getByRole('slider', { name: 'Instrument sound', exact: true });
-  await expect(tutor).toHaveAttribute('aria-valuenow', '80');
-  await expect(instrument).toHaveAttribute('aria-valuenow', '80');
-  await tutor.focus();
-  await page.keyboard.press('Home');
-  await expect
-    .poll(
-      async () =>
-        ((await (await request.get('/api/state')).json()) as Snapshot).settings.voiceVolume,
-    )
-    .toBe(0);
-  expect(((await (await request.get('/api/state')).json()) as Snapshot).settings.volume).toBe(0.8);
-  await enter(page);
-  await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
-  const popup = page.getByRole('dialog', { name: 'Audio settings', exact: true });
-  await expect(popup.getByRole('slider', { name: 'Tutor voice', exact: true })).toHaveAttribute(
-    'aria-valuenow',
-    '0',
-  );
-  const sound = popup.getByRole('slider', { name: 'Instrument sound', exact: true });
-  await sound.focus();
-  await page.keyboard.press('End');
-  await expect
-    .poll(
-      async () => ((await (await request.get('/api/state')).json()) as Snapshot).settings.volume,
-    )
-    .toBe(1);
-  expect(((await (await request.get('/api/state')).json()) as Snapshot).settings.voiceVolume).toBe(
-    0,
-  );
-  await page.screenshot({
-    path: 'test-results\\separate-audio-volumes.png',
-    animations: 'disabled',
-    fullPage: true,
+for (const viewport of [
+  { width: 1440, height: 1000 },
+  { width: 390, height: 844 },
+]) {
+  test(`keeps one speaker volume and a labeled instrument selector at ${viewport.width}x${viewport.height}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const volume = page.getByRole('slider', { name: 'Speaker volume', exact: true });
+    await expect(volume).toHaveAttribute('aria-valuenow', '80');
+    await expect(page.getByRole('slider')).toHaveCount(1);
+    await expect(page.getByText('Tutor voice', { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByTestId('setup-music').getByText('Instrument sound', { exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: join('test-results', `speaker-volume-setup-${viewport.width}.png`),
+      animations: 'disabled',
+      fullPage: true,
+    });
+    await volume.focus();
+    await page.keyboard.press('Home');
+    await expect
+      .poll(
+        async () => ((await (await request.get('/api/state')).json()) as Snapshot).settings.volume,
+      )
+      .toBe(0);
+    await enter(page);
+    await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
+    const popup = page.getByRole('dialog', { name: 'Audio settings', exact: true });
+    const sound = popup.getByRole('slider', { name: 'Speaker volume', exact: true });
+    await expect(sound).toHaveAttribute('aria-valuenow', '0');
+    await expect(popup.getByRole('slider')).toHaveCount(1);
+    await expect(popup.getByText('Instrument sound', { exact: true })).toBeVisible();
+    await sound.focus();
+    await page.keyboard.press('End');
+    await expect
+      .poll(
+        async () => ((await (await request.get('/api/state')).json()) as Snapshot).settings.volume,
+      )
+      .toBe(1);
+    await page.screenshot({
+      path: join('test-results', `speaker-volume-game-${viewport.width}.png`),
+      animations: 'disabled',
+      fullPage: true,
+    });
+    await page.reload();
+    await expect(page.getByRole('slider', { name: 'Speaker volume', exact: true })).toHaveAttribute(
+      'aria-valuenow',
+      '100',
+    );
+    await expect(page.getByRole('slider')).toHaveCount(1);
   });
-  await page.reload();
-  await expect(page.getByRole('slider', { name: 'Tutor voice', exact: true })).toHaveAttribute(
-    'aria-valuenow',
-    '0',
-  );
-  await expect(page.getByRole('slider', { name: 'Instrument sound', exact: true })).toHaveAttribute(
-    'aria-valuenow',
-    '100',
-  );
-});
+}
 
 test('resizes the two desktop panels by pointer and keyboard', async ({ page }) => {
   await page.goto('/');

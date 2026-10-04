@@ -148,8 +148,7 @@ function ConversationHistory({
         tabIndex={preview ? undefined : 0}
         aria-label={preview ? 'Latest conversation' : 'Practice conversation'}
         aria-live={
-          (state.snapshot?.settings.voiceVolume ?? state.snapshot?.settings.volume) === 0 ||
-          state.snapshot?.session?.mode === 'solo'
+          state.snapshot?.settings.volume === 0 || state.snapshot?.session?.mode === 'solo'
             ? 'polite'
             : 'off'
         }

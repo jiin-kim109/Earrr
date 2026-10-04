@@ -113,10 +113,11 @@ without excessive praise. The player is treated as a musician at every level.
     graphics: interactive keys/strings/frets at entry, display-only in the lesson's
     Audio settings popover. Its larger speaker icon sits in the white exercise
     card's upper-right corner and contains the same
-    speaker selector and separate Tutor voice / Instrument sound volume controls
-    as entry, plus the preferred instrument. Keep instrument preview geometry fixed.
-    Preserve existing default output levels and independently persist both volumes.
-    Older single-volume saves initialize both channels from that saved value.
+    speaker selector and one shared speaker volume control as entry, plus the
+    preferred instrument with its Instrument sound selector label. Keep instrument
+    preview geometry fixed. Preserve the default 80% level and persist one volume
+    for both tutor speech and instrument audio. Previously split-volume saves keep
+    their existing volume as the shared speaker level.
 19. The message composer has one microphone icon beside the input, opening a listed
     device selector. Speaker devices are also listed, not placed in a dropdown.
     Its fill follows microphone level; muted state uses a crossed

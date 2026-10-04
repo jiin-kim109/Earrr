@@ -7,7 +7,6 @@ import { InstrumentPicker } from '@/instruments/InstrumentPicker';
 import { studio, useStudio } from '@/studio/studio';
 import { MicrophoneSettings } from './MicrophoneSettings.js';
 import { SpeakerSettings } from './AudioSettings.js';
-import { AudioNotice } from './AudioNotice.js';
 import type { Settings } from '../../shared/types/user.js';
 
 export function AudioSetup({
@@ -68,8 +67,8 @@ export function AudioSetup({
             volume={settings.volume}
             voiceVolume={settings.voiceVolume}
             pending={pending}
+            surface="setup"
           />
-          <AudioNotice surface="setup" />
           <InlineError />
           {!state.snapshot && state.error && !state.loading && !state.busy && (
             <Button variant="text" size="sm" onClick={() => void studio.refresh()}>

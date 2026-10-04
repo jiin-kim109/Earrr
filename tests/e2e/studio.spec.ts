@@ -183,11 +183,13 @@ test('shows only essential setup without capturing a microphone whose permission
   await expect(page.getByRole('heading', { name: 'Get ready.', exact: true })).toHaveCount(0);
   await expect(page.getByRole('radiogroup', { name: 'Microphone', exact: true })).toHaveCount(1);
   await expect(page.getByTestId('microphone-meter')).toHaveAttribute('data-active', 'false');
-  await expect(page.getByText('Instrument sound', { exact: true })).toBeVisible();
+  await expect(
+    page.getByTestId('setup-music').getByText('Instrument sound', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Speakers', exact: true })).toBeVisible();
   await expect(page.getByRole('slider', { name: 'Tutor voice', exact: true })).toHaveCount(1);
   await expect(page.getByRole('slider', { name: 'Instrument sound', exact: true })).toHaveCount(1);
-  await expect(page.getByRole('slider')).toHaveCount(1);
+  await expect(page.getByRole('slider')).toHaveCount(2);
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await expect(page.getByTestId('instrument-piano').locator('svg text')).toHaveCount(0);
   const instrumentBox = (await page

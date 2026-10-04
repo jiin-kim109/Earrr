@@ -9,17 +9,20 @@ import { Slider } from '@/components/ui/slider';
 import { InstrumentPicker } from '@/instruments/InstrumentPicker';
 import { studio, useStudio } from '@/studio/studio';
 import { AudioNotice } from './AudioNotice.js';
+import type { AudioNoticeSurface } from '@/studio/store';
 
 export function SpeakerSettings({
   volume,
   voiceVolume = volume,
   scrollable = false,
   pending = false,
+  surface,
 }: {
   volume: number;
   voiceVolume?: number;
   scrollable?: boolean;
   pending?: boolean;
+  surface: AudioNoticeSurface;
 }) {
   const state = useStudio();
   const id = useId();
@@ -74,6 +77,7 @@ export function SpeakerSettings({
           </div>
         ))}
       </RadioGroup>
+      <AudioNotice surface={surface} />
       <div className="space-y-3 pt-2">
         {(
           [
@@ -139,8 +143,12 @@ export function AudioSettings() {
         aria-label="Audio settings"
         className="scrollbar-thin scrollbar-thumb-muted-foreground/60 scrollbar-track-transparent max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-1.5rem)] space-y-4 overflow-y-auto rounded-2xl p-5"
       >
-        <SpeakerSettings volume={volume} voiceVolume={settings.voiceVolume} scrollable />
-        <AudioNotice surface="lesson" />
+        <SpeakerSettings
+          volume={volume}
+          voiceVolume={settings.voiceVolume}
+          surface="lesson"
+          scrollable
+        />
         <InstrumentPicker instrument={settings.instrument} badge showLabel={false} />
       </PopoverContent>
     </Popover>

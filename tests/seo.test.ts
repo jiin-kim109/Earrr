@@ -11,7 +11,9 @@ const origin = 'https://earrr.app';
 describe('public search metadata and crawl endpoints', () => {
   it('keeps the title and provides one canonical website identity with absolute social images', () => {
     const rendered = renderPublicHtml(html, origin);
-    expect(rendered).toContain('<title>Earrr | Ear training with a friendly AI tutor.</title>');
+    expect(rendered).toContain(
+      '<title>Earrr | Ear training game with a friendly AI tutor.</title>',
+    );
     expect(rendered.match(/rel="canonical"/g)).toHaveLength(1);
     expect(rendered).toContain('rel="canonical" href="https://earrr.app/"');
     expect(rendered).toContain('property="og:url" content="https://earrr.app/"');
@@ -40,10 +42,9 @@ describe('public search metadata and crawl endpoints', () => {
           `(?:name|property)="${field}"\\s+content="${description.replaceAll('.', '\\.')}"`,
         ),
       );
-    expect(rendered).not.toMatch(
-      /\bgame\b|while you work|through voice|clear feedback|guided lessons/i,
-    );
-    expect(rendered).toContain('/brand/earrr-social.png?v=training-2');
+    expect(rendered).not.toMatch(/while you work|through voice|clear feedback|guided lessons/i);
+    expect(description).not.toMatch(/\bgame\b/i);
+    expect(rendered).toContain('/brand/earrr-social.png?v=game-3');
   });
 
   it('serves a real text robots file without blocking resources used to render the app', async () => {
@@ -56,8 +57,8 @@ describe('public search metadata and crawl endpoints', () => {
     expect(response.text).not.toMatch(/Disallow: \/(api|assets)|<!doctype/i);
   });
 
-  it('uses the same non-game branding in the install manifest, social generator, README and emails', () => {
-    const title = 'Earrr | Ear training with a friendly AI tutor.';
+  it('restores the game headline consistently without changing the concise descriptions', () => {
+    const title = 'Earrr | Ear training game with a friendly AI tutor.';
     const description =
       'Simple, hands-free ear training with an AI tutor. Practice pitch, intervals and chords.';
     const manifest = JSON.parse(
@@ -72,8 +73,8 @@ describe('public search metadata and crawl endpoints', () => {
       '../supabase/templates/recovery.html',
     ]) {
       const content = readFileSync(new URL(file, import.meta.url), 'utf8');
-      expect(content, file).toContain('Ear training with a friendly AI tutor.');
-      expect(content, file).not.toMatch(/\bgame\b|while you work|while doing other work/i);
+      expect(content, file).toContain('Ear training game with a friendly AI tutor.');
+      expect(content, file).not.toMatch(/while you work|while doing other work/i);
     }
   });
 

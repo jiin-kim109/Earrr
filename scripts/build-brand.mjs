@@ -30,7 +30,7 @@ try {
   }
   await page.setViewportSize({ width: 1200, height: 630 });
   await page.setContent(
-    `<style>body{margin:0;background:oklch(97.5% .004 85);height:630px;display:grid;place-content:center;gap:26px;text-align:center;color:oklch(42% .015 350);font:26px system-ui}img{width:520px;display:block}p{margin:0}</style><img alt="Earrr" src="${uri(wordmark)}"><p>Ear training with a friendly AI tutor.</p>`,
+    `<style>body{margin:0;background:oklch(97.5% .004 85);height:630px;display:grid;place-content:center;gap:26px;text-align:center;color:oklch(42% .015 350);font:26px system-ui}img{width:520px;display:block}p{margin:0}</style><img alt="Earrr" src="${uri(wordmark)}"><p>Ear training game with a friendly AI tutor.</p>`,
   );
   await page.screenshot({ path: resolve(directory, 'earrr-social.png') });
 } finally {

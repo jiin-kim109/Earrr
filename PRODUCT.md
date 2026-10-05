@@ -61,7 +61,7 @@ without excessive praise. The player is treated as a musician at every level.
 9. Show a Teams-style microphone/speaker setup on entry. Local microphone preview
    requires consent and sends no audio to Azure. Coach voice is audible by
    default. Desktop entry is two columns, instrument left and devices right,
-   with one training action. A large Earrr wordmark image and "Ear training with
+   with one training action. A large Earrr wordmark image and "Ear training game with
    a friendly AI tutor." sit above the left side; compact layouts stack.
    Group the logo, a larger styled two-line subtitle, and a fixed instrument
    stage in one coherent left column instead of separating the heading far above it.
@@ -247,7 +247,7 @@ without excessive praise. The player is treated as a musician at every level.
     events. Preserve the mutation journal for reload recovery. Routine invalid
     answers, form validation and microphone/speaker permission notices remain local
     and nonfatal. Intentional pause/end does not trigger a failure overlay.
-37. Keep the browser tab title fixed to Earrr | Ear training with a friendly
+37. Keep the browser tab title fixed to Earrr | Ear training game with a friendly
     AI tutor. for every surface, including account screens.
 38. Tutorial dots are an ungated step selector, not mastery or a completion
     percentage. Show current explanation position or tutorial-end state, with
@@ -390,12 +390,12 @@ without excessive praise. The player is treated as a musician at every level.
     semitone counts or repeat a lesson after every correct answer. Keep useful
     mistake distinctions, requested explanations and all background-listening
     references intact. Instrument playback and microphone barge-in are unchanged.
-60. Present Earrr as simple, hands-free ear training, not a game. Keep the intro,
-    tab title, search/social metadata, install manifest, brand image and email
-    footers consistent. Use "Ear training with a friendly AI tutor." and the concise
-    description "Simple, hands-free ear training with an AI tutor. Practice pitch,
-    intervals and chords." Do not use work/background scenarios in marketing copy;
-    background practice remains supported behavior.
+60. Present Earrr with the ear-training game headline and simple, hands-free
+    copy. Keep the intro, tab title, search/social metadata, install manifest,
+    brand image and email footers consistent. Use "Ear training game with a friendly
+    AI tutor." and the concise description "Simple, hands-free ear training with
+    an AI tutor. Practice pitch, intervals and chords." Do not use work/background
+    scenarios in marketing copy; background practice remains supported behavior.
 
 ## Ear-training design references
 

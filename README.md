@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/brand/earrr-social.png" alt="Earrr. Ear training with a friendly AI tutor." width="800" />
+  <img src="frontend/public/brand/earrr-social.png" alt="Earrr. Ear training game with a friendly AI tutor." width="800" />
 </p>
 
 <p align="center">

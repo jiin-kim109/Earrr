@@ -58,7 +58,7 @@ export async function initializeSchema(db: Database): Promise<number> {
       id TEXT PRIMARY KEY,
       exercise_id TEXT NOT NULL REFERENCES exercises(id)
     );
-    CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id = 1), skill_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 2);
+    CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id = 1), skill_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 3);
     CREATE TABLE IF NOT EXISTS lesson_completions (skill_id TEXT PRIMARY KEY, completed_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lesson_introductions (
       skill_id TEXT PRIMARY KEY,

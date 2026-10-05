@@ -17,7 +17,7 @@ describe('concise tutorials with stable saved positions', () => {
       expect(steps.at(-1)!.id).toBe('ready-for-practice');
       expect(new Set(steps.map((step) => step.id)).size).toBe(steps.length);
     }
-    expect(teachingSteps('intervals-foundation', 'piano')).toHaveLength(7);
+    expect(teachingSteps('intervals-foundation', 'piano')).toHaveLength(6);
     expect(skills.some((skill) => skill.id === 'intervals-chromatic')).toBe(false);
     expect(teachingSteps('triad-colors', 'piano').filter((step) => step.audio)).toHaveLength(2);
     expect(teachingSteps('triad-inversions', 'piano').filter((step) => step.audio)).toHaveLength(3);
@@ -29,7 +29,6 @@ describe('concise tutorials with stable saved positions', () => {
     for (const [id, semitones] of [
       ['minor-third', 3],
       ['major-third', 4],
-      ['perfect-fourth', 5],
       ['perfect-fifth', 7],
       ['octave', 12],
     ] as const) {
@@ -42,7 +41,8 @@ describe('concise tutorials with stable saved positions', () => {
 
   it.each([
     ['intervals-foundation', 6, 'octave'],
-    ['intervals-foundation', 3, 'perfect-fourth'],
+    ['intervals-foundation', 3, 'perfect-fifth'],
+    ['intervals-foundation', 4, 'perfect-fifth'],
     ['intervals-foundation', 8, 'ready-for-practice'],
     ['triad-colors', 2, 'diminished-0'],
     ['triad-inversions', 4, 'ready-for-practice'],
@@ -100,7 +100,7 @@ describe('concise tutorials with stable saved positions', () => {
       game = await AgentService.create(store, true, 'test');
       const state = await game.snapshot();
       expect(state.teaching?.stepId).toBe('octave');
-      expect(state.teaching?.index).toBe(5);
+      expect(state.teaching?.index).toBe(4);
       expect(state.totalAnswers).toBe(0);
       expect(
         (await store.sessions.lessonPosition('intervals-foundation', 'coach'))?.teaching?.stepId,

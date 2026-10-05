@@ -175,7 +175,7 @@ try {
   expect(state.session?.status).toBe('active');
   expect(state.teaching?.section).toBe('welcome');
   await expect(page.getByTestId('coach-waveform')).toBeVisible();
-  await expect(page).toHaveTitle('Earrr | Ear training game with a friendly AI tutor.');
+  await expect(page).toHaveTitle('Earrr | Ear training with a friendly AI tutor.');
 
   const beforeConsent = tools.length;
   await send(page, 'Yes, let us start ear training.');

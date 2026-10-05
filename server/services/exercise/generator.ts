@@ -277,6 +277,8 @@ export function createExercise(options: {
     case 'intervals-chromatic': {
       const lesson = intervalLessons[skillId];
       const interval = target.interval ?? choose(random, lesson.distances);
+      if (!(lesson.distances as readonly number[]).includes(interval))
+        throw new Error('The planned interval is outside this lesson.');
       const direction = target.presentation ?? choose(random, lesson.presentations);
       const notes =
         direction === 'descending'
@@ -292,7 +294,7 @@ export function createExercise(options: {
         hints: [
           'Focus on the space between the notes, not their individual names.',
           interval <= 5
-            ? 'This interval fits within a perfect fourth.'
+            ? 'This interval is smaller than a perfect fifth.'
             : interval >= 8
               ? 'This interval is wider than a perfect fifth.'
               : 'This distance is near the middle of an octave.',

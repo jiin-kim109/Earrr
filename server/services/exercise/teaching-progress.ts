@@ -11,7 +11,10 @@ function legacyIds(lessonId: SkillId, current: string[]): string[] {
     case 'intervals-foundation':
     case 'intervals-harmonic':
     case 'intervals-chromatic':
-      demos = intervalLessons[lessonId].distances.flatMap((distance) => {
+      // Numeric saves use the original ordering even when a demo has since been removed.
+      const distances =
+        lessonId === 'intervals-chromatic' ? intervalLessons[lessonId].distances : [3, 4, 5, 7, 12];
+      demos = distances.flatMap((distance) => {
         const id = intervalNames[distance]!.replaceAll(' ', '-');
         return distance === 4 ? [id, 'compare-thirds'] : [id];
       });

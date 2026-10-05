@@ -61,6 +61,7 @@ try {
       'run',
       'tests/storage.test.ts',
       'tests/logging.test.ts',
+      'tests/interval-revision.test.ts',
       '--reporter=dot',
     ],
     {

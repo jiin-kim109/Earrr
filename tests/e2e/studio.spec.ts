@@ -66,7 +66,7 @@ test.beforeEach(async ({ request, page }) => {
 const enter = (page: Page) =>
   page.getByRole('button', { name: /^(Practice offline|Start training)$/ }).click();
 const player = (page: Page) => page.getByLabel('Exercise player', { exact: true });
-const fixedTitle = 'Earrr | Ear training game with a friendly AI tutor.';
+const fixedTitle = 'Earrr | Ear training with a friendly AI tutor.';
 async function noPageScroll(page: Page) {
   await expect
     .poll(() =>
@@ -201,7 +201,7 @@ test('shows only essential setup without capturing a microphone whose permission
   expect(settingsBox.x).toBeGreaterThan(instrumentBox.x + instrumentBox.width);
   await expect(page.getByRole('heading', { name: 'Earrr', exact: true })).toBeVisible();
   await expect(page.getByTestId('setup-tagline')).toHaveText(
-    'Ear training game with a friendly AI tutor.',
+    'Ear training with a friendly AI tutor.',
   );
   for (const text of [
     'Not connected',
@@ -2569,11 +2569,15 @@ test('uses the Earrr image wordmark, local icons and search metadata', async ({
   request,
 }) => {
   const html = await (await request.get('/')).text();
-  expect(html).toContain('<title>Earrr | Ear training game with a friendly AI tutor.</title>');
+  expect(html).toContain('<title>Earrr | Ear training with a friendly AI tutor.</title>');
   expect(html).toContain('property="og:title"');
   expect(html).toContain('name="twitter:card"');
   const manifest = await (await request.get('/site.webmanifest')).json();
   expect(manifest.short_name).toBe('Earrr');
+  expect(manifest.name).toBe(fixedTitle);
+  expect(manifest.description).toBe(
+    'Simple, hands-free ear training with an AI tutor. Practice pitch, intervals and chords.',
+  );
   for (const size of [32, 128, 180, 192, 512])
     expect((await request.get(`/brand/earrr-${size}.png`)).ok()).toBe(true);
   const logo = await (await request.get('/brand/earrr-wordmark.svg')).text();
@@ -3403,7 +3407,7 @@ for (const viewport of [
       page.getByRole('radio', { name: 'Audio interface speakers', exact: true }),
     ).toBeVisible();
     const tagline = page.getByTestId('setup-tagline');
-    await expect(tagline).toHaveText('Ear training game with a friendly AI tutor.');
+    await expect(tagline).toHaveText('Ear training with a friendly AI tutor.');
     await page.evaluate(() => document.fonts.ready);
     const typeSize = await tagline.evaluate((element) =>
       parseFloat(getComputedStyle(element).fontSize),

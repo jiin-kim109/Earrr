@@ -351,6 +351,43 @@ test('reduced motion keeps musical listening markers static without disabling pl
   expect((await engine.game.snapshot()).totalAnswers).toBe(0);
 });
 
+for (const skillId of ['intervals-foundation', 'intervals-harmonic'] as const) {
+  test(`${skillId} has four interval demos and no perfect-fourth tutorial step`, async ({
+    page,
+    engine,
+  }) => {
+    const started = await engine.game.execute({
+      callId: randomUUID(),
+      name: 'start_session',
+      arguments: { mode: 'coach', focus: skillId },
+    });
+    await engine.game.execute({
+      callId: randomUUID(),
+      sessionId: started.snapshot.session!.id,
+      name: 'teach_lesson',
+      arguments: { stepId: 'perfect-fifth' },
+    });
+    await page.addInitScript({ content: controlledCoachScript });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Start training', exact: true }).click();
+    await expect(player(page)).toHaveAttribute('data-mode', 'teaching');
+    const steps = page.getByRole('navigation', { name: 'Tutorial steps', exact: true });
+    await expect(steps.locator('[data-step-id]')).toHaveCount(6);
+    await expect(steps.locator('[data-step-id="perfect-fourth"]')).toHaveCount(0);
+    for (const id of ['minor-third', 'major-third', 'perfect-fifth', 'octave'])
+      await expect(steps.locator(`[data-step-id="${id}"]`)).toHaveCount(1);
+    await expect(
+      player(page).getByRole('heading', { name: 'perfect fifth', exact: true }),
+    ).toBeVisible();
+    expect((await engine.game.snapshot()).course.completedLessons).toBe(0);
+    await page.screenshot({
+      path: join('test-results', `four-interval-tutorial-${skillId}.png`),
+      fullPage: true,
+      animations: 'disabled',
+    });
+  });
+}
+
 for (const viewport of [
   { width: 1440, height: 900 },
   { width: 390, height: 844 },

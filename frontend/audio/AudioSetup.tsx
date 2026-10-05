@@ -38,7 +38,7 @@ export function AudioSetup({
               data-testid="setup-tagline"
               className="mt-4 text-xl leading-snug font-normal tracking-tight text-muted-foreground sm:text-2xl"
             >
-              Ear training game with{' '}
+              Ear training with{' '}
               <span className="block font-medium text-foreground">a friendly AI tutor.</span>
             </p>
           </header>

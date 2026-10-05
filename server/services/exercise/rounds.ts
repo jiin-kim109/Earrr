@@ -33,10 +33,16 @@ export function roundPlan(skillId: SkillId, round: number, seed: number): Exerci
   let targets: ExerciseTarget[];
   const qualities = chordPools[skillId];
   if (skillId === 'intervals-foundation') {
-    targets = essentialIntervals.flatMap((interval) => [
-      { interval, presentation: 'ascending' as const },
-      { interval, presentation: 'descending' as const },
-    ]);
+    const presentations = ['ascending', 'descending'] as const;
+    targets = balanced(
+      presentations.flatMap((_presentation, offset) =>
+        essentialIntervals.map((interval, index) => ({
+          interval,
+          presentation: presentations[(offset + index) % presentations.length]!,
+        })),
+      ),
+      round,
+    );
   } else if (skillId === 'triad-colors') {
     targets = (
       [

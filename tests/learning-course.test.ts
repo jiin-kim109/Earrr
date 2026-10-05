@@ -188,7 +188,7 @@ describe('manageable learning progression', () => {
       expect(state.course.selectedLesson).toBe('intervals-harmonic');
       expect(state.course.completedLessons).toBe(1);
       expect(state.totalAnswers).toBe(0);
-      expect((await restored.db.prepare('SELECT revision FROM course').get())?.revision).toBe(2);
+      expect((await restored.db.prepare('SELECT revision FROM course').get())?.revision).toBe(3);
       await game.restoreCheckpoint();
       expect((await game.snapshot()).course).toEqual(state.course);
     } finally {

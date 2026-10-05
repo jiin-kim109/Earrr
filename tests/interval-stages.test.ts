@@ -64,7 +64,7 @@ describe('two direct interval practice stages', () => {
   });
 
   it.each(['intervals-foundation', 'intervals-harmonic'] as const)(
-    '%s randomizes all five intervals, roots, and registers while keeping its playback mode',
+    '%s randomizes all four intervals, roots, and registers while keeping its playback mode',
     (skillId) => {
       const modes = new Set<string>();
       const distances = new Set<number>();
@@ -101,9 +101,19 @@ describe('two direct interval practice stages', () => {
     },
   );
 
-  it('keeps labeled teaching for all five intervals, separate from direct practice', () => {
+  it('keeps labeled teaching for all four intervals, separate from direct practice', () => {
+    expect(essentialIntervals).toEqual([3, 4, 7, 12]);
     for (const skillId of ['intervals-foundation', 'intervals-harmonic'] as const) {
       const steps = teachingSteps(skillId, 'piano');
+      expect(steps.map((step) => step.id)).toEqual([
+        'overview',
+        'minor-third',
+        'major-third',
+        'perfect-fifth',
+        'octave',
+        'ready-for-practice',
+      ]);
+      expect(JSON.stringify(steps)).not.toContain('perfect fourth');
       for (const distance of essentialIntervals) {
         const demo = steps.find((step) => step.demoLabel === intervalNames[distance])!;
         expect(demo).toBeDefined();
@@ -118,6 +128,22 @@ describe('two direct interval practice stages', () => {
       }
     }
   });
+
+  it.each(['intervals-foundation', 'intervals-harmonic'] as const)(
+    '%s rejects removed perfect-fourth targets rather than silently generating them',
+    (skillId) => {
+      expect(() =>
+        createExercise({
+          id: randomUUID(),
+          seed: 2,
+          skillId,
+          target: { interval: 5 },
+          settings: defaultSettings,
+          now: new Date().toISOString(),
+        }),
+      ).toThrow('outside this lesson');
+    },
+  );
 
   it('returns one question, grades it directly, and prepares one next question', async () => {
     const played = await call('play_exercise');

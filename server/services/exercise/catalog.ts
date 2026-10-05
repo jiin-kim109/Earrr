@@ -99,7 +99,7 @@ export const skills: Skill[] = [
     'Intervals up & down',
     1,
     2,
-    'Thirds, fourths, fifths, and octaves.',
+    'Thirds, fifths, and octaves.',
     'Recognize rising or falling intervals across random roots and registers.',
   ),
   lesson(
@@ -249,7 +249,7 @@ export function getSkill(id: SkillId): Skill {
   return skill;
 }
 
-export const essentialIntervals = [3, 4, 5, 7, 12] as const;
+export const essentialIntervals = [3, 4, 7, 12] as const;
 export const intervalLessons = {
   'intervals-foundation': {
     distances: essentialIntervals,

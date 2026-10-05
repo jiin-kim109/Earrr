@@ -4,6 +4,7 @@ import type { SkillId } from '../../../shared/types/course.js';
 import { skills } from './catalog.js';
 import { roundPlan } from './rounds.js';
 import { newTeachingProgress } from './exercise.service.js';
+import { restoreIntervalRevision } from './interval-revision.js';
 
 const redirects: Partial<Record<SkillId, SkillId>> = {
   'intervals-chromatic': 'intervals-harmonic',
@@ -21,11 +22,19 @@ const unchanged: readonly SkillId[] = [
 export async function restoreCourseRevision(store: Store) {
   const row = await store.db.prepare('SELECT skill_id, revision FROM course WHERE id=1').get();
   if (!row) throw new Error('The course state is missing.');
-  if (Number(row.revision) === 2) return;
-  if (Number(row.revision) !== 1)
+  const revision = Number(row.revision);
+  if (revision === 3) return;
+  if (![1, 2].includes(revision))
     throw new Error('The saved curriculum revision is not supported.');
   await store.transaction(async () => {
-    const selectedRaw = String(row.skill_id) as SkillId;
+    if (revision === 1) await restoreOriginalCourseRevision(store, String(row.skill_id) as SkillId);
+    await restoreIntervalRevision(store);
+    await store.db.prepare('UPDATE course SET revision=3 WHERE id=1').run();
+  });
+}
+
+async function restoreOriginalCourseRevision(store: Store, selectedRaw: SkillId) {
+  await store.transaction(async () => {
     const selected = redirects[selectedRaw] ?? selectedRaw;
     if (!skills.some((skill) => skill.id === selected))
       throw new Error('The saved lesson cannot be mapped to this course.');

@@ -61,7 +61,7 @@ without excessive praise. The player is treated as a musician at every level.
 9. Show a Teams-style microphone/speaker setup on entry. Local microphone preview
    requires consent and sends no audio to Azure. Coach voice is audible by
    default. Desktop entry is two columns, instrument left and devices right,
-   with one training action. A large Earrr wordmark image and "Ear training game with
+   with one training action. A large Earrr wordmark image and "Ear training with
    a friendly AI tutor." sit above the left side; compact layouts stack.
    Group the logo, a larger styled two-line subtitle, and a fixed instrument
    stage in one coherent left column instead of separating the heading far above it.
@@ -95,7 +95,7 @@ without excessive praise. The player is treated as a musician at every level.
     new identities from the historical single-user test database. Grading and
     checkpoints remain atomic; do not duplicate music or agent logic by engine.
 14. Keep essential interval practice to two stages after pitch direction:
-    randomized ascending/descending pairs, then simultaneous pairs. Use all five
+    randomized ascending/descending pairs, then simultaneous pairs. Use all four
     interval labels without a fixed-root reference or a comparison prelude.
     Teach labeled examples in the introduction, not before every question.
 15. Use shadcn/ui and Tailwind utilities with short non-bouncy transitions and
@@ -247,7 +247,7 @@ without excessive praise. The player is treated as a musician at every level.
     events. Preserve the mutation journal for reload recovery. Routine invalid
     answers, form validation and microphone/speaker permission notices remain local
     and nonfatal. Intentional pause/end does not trigger a failure overlay.
-37. Keep the browser tab title fixed to Earrr | Ear training game with a friendly
+37. Keep the browser tab title fixed to Earrr | Ear training with a friendly
     AI tutor. for every surface, including account screens.
 38. Tutorial dots are an ungated step selector, not mastery or a completion
     percentage. Show current explanation position or tutorial-end state, with
@@ -307,8 +307,13 @@ without excessive praise. The player is treated as a musician at every level.
     microphone/default/communications alias. Speaker selection does not request
     microphone access; use a browser-native speaker chooser only if the browser
     supports it and actually denies a requested output device.
-47. Welcome and the first three pitch/interval lessons retain their musical
-    content and piano presentation. Chromatic intervals and standalone reference
+47. Welcome and pitch direction retain their musical content and piano presentation.
+    The two interval lessons teach and test minor third, major third, perfect fifth
+    and octave only; omit perfect fourth from their tutorials, questions and hints.
+    Keep ten questions per round, two or three per interval, with the extra pair
+    rotating between rounds. Melodic rounds have five rising and five falling pairs.
+    Replace removed unasked targets while preserving saved scores, passed lessons
+    and historical answers. Chromatic intervals and standalone reference
     pitch are retired from the active course. Use small, explicit answer sets
     after major/minor, usually two to four and never more than five new categories.
     Inversion questions supply the chord quality so the learner judges only the
@@ -385,6 +390,12 @@ without excessive praise. The player is treated as a musician at every level.
     semitone counts or repeat a lesson after every correct answer. Keep useful
     mistake distinctions, requested explanations and all background-listening
     references intact. Instrument playback and microphone barge-in are unchanged.
+60. Present Earrr as simple, hands-free ear training, not a game. Keep the intro,
+    tab title, search/social metadata, install manifest, brand image and email
+    footers consistent. Use "Ear training with a friendly AI tutor." and the concise
+    description "Simple, hands-free ear training with an AI tutor. Practice pitch,
+    intervals and chords." Do not use work/background scenarios in marketing copy;
+    background practice remains supported behavior.
 
 ## Ear-training design references
 

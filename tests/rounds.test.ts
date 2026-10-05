@@ -239,21 +239,28 @@ describe('planned ten-question rounds', () => {
     },
   );
 
-  it('allocates five up/five down and two of each essential interval before shuffling', () => {
+  it('keeps five up/five down while balancing ten questions across four essential intervals', () => {
     for (let seed = 0; seed < 30; seed++) {
       const directions = roundPlan('pitch-direction', 1, seed);
       expect(directions.filter((item) => item.direction === 'up')).toHaveLength(5);
       expect(directions.filter((item) => item.direction === 'down')).toHaveLength(5);
       const melodic = roundPlan('intervals-foundation', 1, seed);
       const harmonic = roundPlan('intervals-harmonic', 1, seed);
-      for (const interval of [3, 4, 5, 7, 12]) {
+      expect(melodic.filter((item) => item.presentation === 'ascending')).toHaveLength(5);
+      expect(melodic.filter((item) => item.presentation === 'descending')).toHaveLength(5);
+      expect(melodic.some((item) => item.interval === 5)).toBe(false);
+      expect(harmonic.some((item) => item.interval === 5)).toBe(false);
+      for (const interval of [3, 4, 7, 12]) {
         expect(
-          melodic
-            .filter((item) => item.interval === interval)
-            .map((item) => item.presentation)
-            .sort(),
-        ).toEqual(['ascending', 'descending']);
-        expect(harmonic.filter((item) => item.interval === interval)).toHaveLength(2);
+          new Set(
+            melodic.filter((item) => item.interval === interval).map((item) => item.presentation),
+          ),
+        ).toEqual(new Set(['ascending', 'descending']));
+        for (const plan of [melodic, harmonic]) {
+          const count = plan.filter((item) => item.interval === interval).length;
+          expect(count).toBeGreaterThanOrEqual(2);
+          expect(count).toBeLessThanOrEqual(3);
+        }
       }
     }
     expect(
@@ -263,6 +270,21 @@ describe('planned ten-question rounds', () => {
         ),
       ).size,
     ).toBeGreaterThan(20);
+    for (const skill of ['intervals-foundation', 'intervals-harmonic'] as const) {
+      const planned = Array.from({ length: 4 }, (_, index) =>
+        roundPlan(skill, index + 1, index),
+      ).flat();
+      for (const interval of [3, 4, 7, 12]) {
+        expect(planned.filter((item) => item.interval === interval)).toHaveLength(10);
+        if (skill === 'intervals-foundation')
+          for (const presentation of ['ascending', 'descending'])
+            expect(
+              planned.filter(
+                (item) => item.interval === interval && item.presentation === presentation,
+              ),
+            ).toHaveLength(5);
+      }
+    }
     const chromatic = Array.from({ length: 6 }, (_, index) =>
       roundPlan('intervals-chromatic', index + 1, index),
     ).flat();

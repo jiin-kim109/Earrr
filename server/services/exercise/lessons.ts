@@ -39,14 +39,14 @@ export const lessonNotes: Record<SkillId, LessonNotes> = {
     'Up or down',
   ),
   'intervals-foundation': notes(
-    'Recognize five essential intervals. Each question plays two notes, rising or falling at random.',
+    'Recognize four essential intervals. Each question plays two notes, rising or falling at random.',
     'The starting note, register, and direction change at random. Hold the first note in mind and hear the distance to the second. No simultaneous notes yet.',
-    'Minor third, major third, perfect fourth, perfect fifth, or octave',
+    'Minor third, major third, perfect fifth, or octave',
   ),
   'intervals-harmonic': notes(
-    'Recognize the same five intervals when both notes start together, rather than one after the other.',
+    'Recognize the same four intervals when both notes start together, rather than one after the other.',
     'Listen inside the combined sound for its lower and upper notes. The root and register change, but every pair is simultaneous.',
-    'Minor third, major third, perfect fourth, perfect fifth, or octave',
+    'Minor third, major third, perfect fifth, or octave',
   ),
   'intervals-chromatic': notes(
     'Retired chromatic interval lesson.',
@@ -270,7 +270,7 @@ export function teachingSteps(skillId: SkillId, instrument: Instrument): Teachin
     const harmonic = skillId === 'intervals-harmonic';
     const melodic = skillId === 'intervals-foundation';
     steps[0]!.narration = harmonic
-      ? 'Hear the five familiar intervals with both notes together. Listen for the lower and upper pitch inside the combined sound. These examples use C4.'
+      ? 'Hear the four familiar intervals with both notes together. Listen for the lower and upper pitch inside the combined sound. These examples use C4.'
       : melodic
         ? 'An interval is the distance between two notes. One semitone is an adjacent piano key. Each C4 example rises, then falls; its interval name stays the same.'
         : 'Review the chromatic interval examples.';

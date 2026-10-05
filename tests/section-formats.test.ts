@@ -41,11 +41,11 @@ const diagramNotes = (diagram: MusicalDiagram) =>
           )
         : diagram.points;
 
-describe('protected opening chapter', () => {
+describe('opening chapter baselines', () => {
   it.each([
     ['pitch-direction', '1168380822f1b0966aacf3fabeff1f0c09e123c0b1dd108e6312da1794bbf873'],
-    ['intervals-foundation', '75e0ec522631fa21f6a553ebc8dd0804a12da2beb827f74a555dfab076a0503a'],
-    ['intervals-harmonic', '34a4deefd579439a6638e98cab4d875d518232e7ec6e949b4efb30ffb6924908'],
+    ['intervals-foundation', 'ae4db2b964c12bc997f7c5811d9c4780a655049d5908edc8b799ff3dfc5e64fd'],
+    ['intervals-harmonic', '35bf07c487ea9f70caaca809a0a8dd520e112271e212a87c39d641634a38f32a'],
   ] satisfies Array<[SkillId, string]>)(
     'keeps %s questions, audio, tutorials and round allocations byte-identical',
     (skillId, fingerprint) => {
@@ -63,6 +63,12 @@ describe('protected opening chapter', () => {
         round: roundPlan(skillId, 1, 42),
       };
       expect(createHash('sha256').update(JSON.stringify(data)).digest('hex')).toBe(fingerprint);
+      if (skillId !== 'pitch-direction') {
+        expect(data.steps.map((step) => step.id)).not.toContain('perfect-fourth');
+        expect(new Set(data.round.map((target) => target.interval))).toEqual(
+          new Set([3, 4, 7, 12]),
+        );
+      }
       for (const exercise of data.exercises) {
         expect(publicExercise(exercise)).not.toHaveProperty('question');
         expect(exerciseDiagram(exercise)).toBeUndefined();

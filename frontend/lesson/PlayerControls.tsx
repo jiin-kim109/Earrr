@@ -62,8 +62,7 @@ export function TutorialReturn() {
 }
 
 export function PlayerControls() {
-  const { state, session, paused, running, resolved, teaching, next, nextUnlocked, welcome } =
-    useLesson();
+  const { state, session, paused, running, resolved, teaching, next, welcome } = useLesson();
   if (state.busy || state.entering || state.restartingRound || !running || paused) return null;
   if (teaching)
     return (
@@ -103,12 +102,11 @@ export function PlayerControls() {
           <RotateCcw />
           Restart exercises
         </Button>
-        {state.snapshot?.course.round.previous?.passed && next && (
+        {next && (
           <Button
             variant="outline"
             size="sm"
             className="rounded-full px-5"
-            disabled={!nextUnlocked}
             onClick={() => {
               void studio.focus(next);
             }}

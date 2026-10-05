@@ -13,23 +13,19 @@ const ranks = [
 ] as const;
 
 export function companionRank(curriculum: Curriculum, course: CourseState) {
-  const completed = curriculum.chapters.filter((chapter) => {
-    const lessons = curriculum.lessons.filter((lesson) => lesson.chapter === chapter.number);
-    return (
-      lessons.length > 0 &&
-      lessons.every(
-        (lesson) =>
-          course.lessons.find((progress) => progress.skillId === lesson.id)?.status === 'completed',
-      )
-    );
-  }).length;
+  const passed = new Set(
+    course.lessons
+      .filter((lesson) => lesson.status === 'completed')
+      .map((lesson) => lesson.skillId),
+  );
+  const completed = curriculum.lessons.filter((lesson) => passed.has(lesson.id)).length;
+  const total = curriculum.lessons.length;
   const tier =
-    completed === curriculum.chapters.length
-      ? ranks.length - 1
-      : Math.min(
-          ranks.length - 2,
-          Math.ceil((completed * (ranks.length - 2)) / curriculum.chapters.length),
-        );
+    total === 0
+      ? 0
+      : completed === total
+        ? ranks.length - 1
+        : Math.min(ranks.length - 2, Math.ceil((completed * (ranks.length - 2)) / total));
   return { ...ranks[tier]!, tier };
 }
 

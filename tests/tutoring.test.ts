@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { teachingSteps, lessonExamples } from '../server/services/exercise/lessons.js';
-import { skills } from '../server/services/exercise/catalog.js';
 import { chordNotes, chords, scales } from '../server/services/exercise/music.js';
 import { chordQualities, scaleIds, skillIds } from '../shared/schemas/course.js';
 import type { SkillId } from '../shared/types/course.js';
@@ -21,14 +20,6 @@ afterEach(async () => await store.close());
 const call = async (name: ToolName, args: Record<string, unknown> = {}) =>
   await game.execute({ callId: randomUUID(), sessionId, name, arguments: args });
 async function begin(skillId: SkillId = 'pitch-direction') {
-  for (const prior of skills.slice(
-    0,
-    skills.findIndex((skill) => skill.id === skillId),
-  )) {
-    await store.db
-      .prepare('INSERT OR IGNORE INTO lesson_completions(skill_id,completed_at) VALUES(?,?)')
-      .run(prior.id, new Date().toISOString());
-  }
   sessionId = (await call('start_session', { mode: 'coach', focus: skillId })).snapshot.session!.id;
   return await call('play_exercise');
 }
@@ -85,7 +76,7 @@ describe('a tutor before an examiner', () => {
     ).rejects.toThrow('not a quiz');
     expect(await store.attempts.recent()).toHaveLength(0);
   });
-  it('skips explanation into a fresh question without recording a skip or unlocking a lesson', async () => {
+  it('skips explanation into a fresh question without recording a skip or completing a lesson', async () => {
     await begin('intervals-foundation');
     const result = await call('start_practice');
     expect(result.snapshot.session?.phase).toBe('practice');
@@ -97,9 +88,11 @@ describe('a tutor before an examiner', () => {
     expect(await store.attempts.recent()).toHaveLength(0);
     expect(await store.progress.introductionSeen('intervals-foundation')).toBe(true);
     expect(
-      result.snapshot.course.lessons.find((item) => item.skillId === 'triads')
-        ?.unlocked,
-    ).toBe(false);
+      result.snapshot.course.lessons.find((item) => item.skillId === 'intervals-foundation')
+        ?.status,
+    ).toBe('not_started');
+    expect(result.snapshot.course.completedLessons).toBe(0);
+    expect(result.snapshot.course.lessons.every((lesson) => lesson.unlocked)).toBe(true);
   });
   it('can reteach during practice and resume the exact parked question', async () => {
     await begin('intervals-foundation');

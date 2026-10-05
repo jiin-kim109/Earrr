@@ -110,26 +110,80 @@ describe('concise tutorials with stable saved positions', () => {
     }
   });
 
-  it('identifies locked Intervals together distinctly and gives the exercise prerequisite', async () => {
+  it('identifies Intervals together distinctly and allows selecting it before its earlier lessons', async () => {
     const store = await Store.open(':memory:');
     try {
       const game = await AgentService.create(store, true, 'test');
       const state = await game.snapshot();
       const prompt = agentInstructions(state);
       expect(prompt).toContain(
-        '"id":"intervals-harmonic","name":"Intervals together","unlocked":false',
+        '"id":"intervals-harmonic","name":"Intervals together","completed":false',
       );
-      expect(prompt).toContain('Never substitute the current lesson');
-      await expect(
-        game.execute({
-          callId: randomUUID(),
-          name: 'select_lesson',
-          arguments: { skillId: 'intervals-harmonic' },
-        }),
-      ).rejects.toThrow(
-        'Intervals together is locked. Pass Intervals up & down exercises with 8/10',
+      expect(prompt).toContain('All listed lessons are available from the start');
+      expect(prompt).not.toContain('"prerequisite"');
+      const selected = await game.execute({
+        callId: randomUUID(),
+        name: 'select_lesson',
+        arguments: { skillId: 'intervals-harmonic' },
+      });
+      expect(selected.snapshot.course.selectedLesson).toBe('intervals-harmonic');
+      expect(selected.snapshot.course.completedLessons).toBe(0);
+    } finally {
+      await store.close();
+    }
+  });
+
+  it('offers clicking or speaking Skip only at the musical tutorial overview', async () => {
+    const store = await Store.open(':memory:');
+    try {
+      const game = await AgentService.create(store, true, 'test');
+      const started = await game.execute({
+        callId: randomUUID(),
+        name: 'start_session',
+        arguments: { mode: 'coach', focus: 'triads' },
+      });
+      const sessionId = started.snapshot.session!.id;
+      const overview = await game.execute({
+        callId: randomUUID(),
+        sessionId,
+        name: 'play_exercise',
+        arguments: {},
+      });
+      expect(overview.teaching?.stepId).toBe('overview');
+      expect(overview.agent.presentation?.context.parts).toContainEqual(
+        expect.objectContaining({ kind: 'teaching', offerSkip: true }),
       );
-      expect((await game.snapshot()).course.selectedLesson).toBe(state.course.selectedLesson);
+      expect(overview.agent.presentation?.instructions).toContain('click Skip or ask me to skip');
+      expect(overview.agent.presentation?.instructions).toContain(
+        'one short conditional invitation',
+      );
+      expect(overview.agent.presentation?.instructions).toContain(
+        "If you'd like to go straight to exercises",
+      );
+      const demo = await game.execute({
+        callId: randomUUID(),
+        sessionId,
+        name: 'teach_lesson',
+        arguments: { stepId: 'major-0' },
+      });
+      expect(
+        demo.agent.presentation?.context.parts.some(
+          (part) => part.kind === 'teaching' && part.offerSkip,
+        ),
+      ).toBe(false);
+      const welcome = await game.execute({
+        callId: randomUUID(),
+        sessionId,
+        name: 'show_welcome',
+        arguments: {},
+      });
+      expect(
+        welcome.agent.presentation?.context.parts.some(
+          (part) => part.kind === 'teaching' && part.offerSkip,
+        ),
+      ).toBe(false);
+      expect((await game.snapshot()).totalAnswers).toBe(0);
+      expect((await game.snapshot()).course.completedLessons).toBe(0);
     } finally {
       await store.close();
     }

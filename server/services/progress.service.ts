@@ -135,20 +135,17 @@ export class ProgressService {
     const selectedLesson = await this.store.progress.selectedLesson();
     const completed = await this.store.progress.completedLessons();
     const progress = await this.store.progress.getAll();
-    let previousLessonsComplete = true;
 
     const lessons: LessonProgress[] = skills.map((skill) => {
       const completedAt = completed.find((item) => item.skillId === skill.id)?.completedAt ?? null;
       const answered = progress.find((item) => item.skillId === skill.id)!.attempts;
-      const unlocked = previousLessonsComplete || completedAt !== null;
-      previousLessonsComplete &&= completedAt !== null;
 
       return {
         skillId: skill.id,
         status: completedAt ? 'completed' : answered ? 'in_progress' : 'not_started',
         completedAt,
         answered,
-        unlocked,
+        unlocked: true,
       };
     });
 
@@ -163,7 +160,7 @@ export class ProgressService {
     return {
       welcomeSeen: await this.store.progress.introductionSeen('welcome'),
       selectedLesson,
-      completedLessons: completed.length,
+      completedLessons: lessons.filter((lesson) => lesson.status === 'completed').length,
       lessons,
       nextLesson: nextLesson(selectedLesson),
       round: {

@@ -20,13 +20,9 @@ const definitions = {
   ],
   session_not_found: [404, 'This session was not found.'],
   session_not_ready: [409, 'Start or resume an AI coach session before connecting audio.'],
-  lesson_locked: [
-    409,
-    'Pass the previous lesson checkpoint to unlock this lesson. Previously completed lessons remain available for review.',
-  ],
   lesson_change_required: [
     409,
-    'Stay in the selected lesson. Use select_lesson only when the player explicitly chooses another unlocked lesson.',
+    'Stay in the selected lesson. Use select_lesson only when the player explicitly chooses another lesson.',
   ],
   nothing_to_replay: [409, 'There is no previous exercise to replay yet.'],
   answer_not_found: [

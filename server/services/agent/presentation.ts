@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { getSkill, skills } from '../exercise/catalog.js';
 import { checkpointDescription } from '../progress.service.js';
 import { lessonNotes } from '../exercise/lessons.js';
-import { roundRule } from '../exercise/rounds.js';
 import type { ActionEffect, ReplyPurpose } from '../../types/action.types.js';
 import { toolArguments, toolNames } from '../../types/agent.types.js';
 import type {
@@ -74,14 +73,11 @@ export function agentInstructions(snapshot: Snapshot): string {
 }
 
 function lessonChoices(snapshot: Snapshot): AgentToolContext['lessonChoices'] {
-  return skills.map((skill, index) => ({
+  return skills.map((skill) => ({
     id: skill.id,
     name: skill.shortName,
-    unlocked:
-      snapshot.course.lessons.find((lesson) => lesson.skillId === skill.id)?.unlocked ?? false,
-    prerequisite: skills[index - 1]?.shortName ?? null,
-    requiredCorrect: roundRule.correct,
-    questions: roundRule.questions,
+    completed:
+      snapshot.course.lessons.find((lesson) => lesson.skillId === skill.id)?.status === 'completed',
   }));
 }
 
@@ -151,6 +147,9 @@ export function presentationContext(result: ResultData): { parts: PresentationPa
       kind: 'teaching',
       explanation: result.teaching.narration,
       awaitingPractice: result.teaching.awaitingPractice,
+      ...(result.teaching.stepId === 'overview' && !result.teaching.section
+        ? { offerSkip: true as const }
+        : {}),
       ...(result.teaching.section ? { section: result.teaching.section } : {}),
     });
   }

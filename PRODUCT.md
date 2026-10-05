@@ -46,8 +46,9 @@ without excessive praise. The player is treated as a musician at every level.
    There is no XP or achievement-reward system.
 5. Practice one selected lesson at a time. Randomize within the lesson, never
    silently move between chapters. Recommend the next lesson after a clear
-   checkpoint. Guided next-lesson and next-chapter progression is locked until
-   an explicit 8/10 round is passed; completed lessons can be reviewed.
+   checkpoint. Every lesson is available from the start, so experienced players
+   can skip the basics. Passing an explicit 8/10 round adds a completion checkmark,
+   never a prerequisite for access. Completed lessons can be reviewed.
 6. Treat connection errors, permissions, and interruptions as first-class states.
 7. Generate fresh musical contexts. Never let a predictable question order or a
    small memorized answer bank substitute for hearing. Replays remain identical,
@@ -69,6 +70,10 @@ without excessive praise. The player is treated as a musician at every level.
 10. Teach before examining. A new coached lesson explains its vocabulary and
     demonstrates labeled musical comparisons before questions. The learner may
     ask follow-ups, replay concepts, or skip the introduction conversationally.
+    Its opening overview offers a brief conditional choice: if the learner wants
+    to go straight to exercises, they can click Skip or ask the tutor to skip.
+    Do not repeat that option in every demonstration or imply that mentioning
+    Skip grants consent to start practice.
     Demonstrations never count as scored practice or checkpoint evidence.
     Display their actual notes through the same read-only musical display contract
     used for graded answers. Preserve the piano for pitch, intervals and core
@@ -136,10 +141,11 @@ without excessive praise. The player is treated as a musician at every level.
     The entire compact conversation preview expands history. Use a double-down
     icon and Minimize to collapse it; do not add a separate History label.
 20. Keep the desktop lesson sidebar visible with readable labels, a clearly
-    contrasted selected row, and aligned completion/lock icons. Only mobile has
+    contrasted selected row, and right-aligned checks for passed lessons. Never
+    show lesson locks. Only mobile has
     a top-left hamburger and overlay drawer; do not show a selected-row dot.
     Replace the sidebar progress footer with a playful ear companion. Its title
-    reflects completed chapters without XP; clicking triggers silent expressive
+    reflects the number of passed lessons without XP; clicking triggers silent expressive
     motion, never scores or distracting audio. Everything below Lessons, including
     the full companion and title after the lesson list, shares one native scroll
     container on desktop and in the mobile drawer. Do not pin the companion as a
@@ -285,10 +291,11 @@ without excessive praise. The player is treated as a musician at every level.
     conversation-token budget. Keep recent literal messages and authoritative
     musical state. Separate summary calls are not needed for cost control;
     optional summarizer credentials remain private server configuration.
-45. Resolve conversational navigation from exact visible lesson names. A locked
-    requested lesson stays blocked until its prerequisite exercise checkpoint
-    passes; clearly name that prerequisite and 8/10 target. Never substitute the
-    current lesson or claim the requested target is already active.
+45. Resolve conversational navigation from exact visible lesson names. All active
+    lessons are freely selectable, even after an unsuccessful round. Never
+    require prerequisite tests, substitute an easier lesson, or claim the requested
+    target is already active. Offer Next lesson after either round outcome while
+    waiting for the player's choice.
 46. On secure app entry, request microphone permission immediately if the browser
     still needs consent, before backend hydration or a device-selection click.
     Stop the short authorization stream and preserve mic-off/saved preferences.
@@ -345,7 +352,10 @@ without excessive praise. The player is treated as a musician at every level.
     Retired selections are mapped to active lessons; incompatible pending rounds
     and tutorial positions are reintroduced rather than misgraded with new rules.
     New lessons are not automatically marked complete. Companion rank milestones
-    scale with the number of active chapters and reserve the final rank for all.
+    scale with the number of distinct passed active lessons, not full chapters.
+    The first completed lesson earns Pitch Scout; Ear Master requires all active
+    lessons. Visits, tutorial skips, repeated passes and mascot clicks never
+    fabricate progress.
 56. Use a single Supabase raw-event table for traffic, usage and reliability
     analytics instead of Google Analytics. Keep essential dimensions in columns
     and event-specific data in a JSON message. Client/server code shares the
@@ -369,6 +379,12 @@ without excessive praise. The player is treated as a musician at every level.
     and mark authentication/API responses noindex without blocking resources needed
     to render the app. Cache fingerprinted build assets immutably. Do not invent
     reviews, ratings or private lesson URLs for search engines.
+59. Use native Realtime speech at 1.2x speed for the whole tutor, with clear pitch
+    names and short pauses. Routine exercise feedback is one brief confirmation
+    or correction followed by the necessary next-question cue. Do not recite
+    semitone counts or repeat a lesson after every correct answer. Keep useful
+    mistake distinctions, requested explanations and all background-listening
+    references intact. Instrument playback and microphone barge-in are unchanged.
 
 ## Ear-training design references
 

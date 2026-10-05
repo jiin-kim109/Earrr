@@ -67,7 +67,7 @@ export class AgentService {
     private readonly now: () => Date = () => new Date(),
   ) {
     this.progress = new ProgressService(store, now);
-    this.sessions = new SessionService(store, this.progress, now);
+    this.sessions = new SessionService(store, now);
     this.exercises = new ExerciseService(
       store,
       new GradingService(store, this.progress, now),

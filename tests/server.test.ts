@@ -422,6 +422,7 @@ describe('server-only realtime negotiation', () => {
             output_modalities: ['audio'],
             audio: {
               input: { turn_detection: { create_response: false, interrupt_response: true } },
+              output: { voice: 'sage', speed: 1.2 },
             },
           },
         });

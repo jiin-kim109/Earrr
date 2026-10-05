@@ -26,11 +26,6 @@ export function useLesson() {
     running: Boolean(session && (connected || session.mode === 'solo')),
     resolved: Boolean(current && current.status !== 'unanswered'),
     next: snapshot.course.nextLesson,
-    nextUnlocked: Boolean(
-      snapshot.course.nextLesson &&
-        snapshot.course.lessons.find((item) => item.skillId === snapshot.course.nextLesson)
-          ?.unlocked,
-    ),
     teaching: snapshot.teaching,
     welcome: snapshot.teaching?.section === 'welcome',
   };

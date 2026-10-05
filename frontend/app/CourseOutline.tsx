@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, ChevronDown, LockKeyhole } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { cn } from 'cn';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
@@ -123,14 +123,10 @@ export function CourseOutline({
                               active &&
                                 'bg-foreground font-medium text-background shadow-none hover:bg-foreground/95 hover:text-background disabled:opacity-100',
                             )}
-                            disabled={!progress.unlocked || busy}
+                            disabled={busy}
                             aria-current={active ? 'step' : undefined}
-                            aria-label={`${skill.shortName}${!progress.unlocked ? ', locked' : progress.status === 'completed' ? ', completed' : ''}`}
-                            title={
-                              !progress.unlocked
-                                ? 'Pass the previous lesson checkpoint to unlock.'
-                                : skill.description
-                            }
+                            aria-label={`${skill.shortName}${progress.status === 'completed' ? ', completed' : ''}`}
+                            title={skill.description}
                             onClick={() => {
                               void studio.focus(skill.id);
                               onSelect?.();
@@ -147,12 +143,14 @@ export function CourseOutline({
                             <span className="min-w-0 flex-1 break-words">{skill.shortName}</span>
                             <span
                               data-testid="lesson-status"
+                              data-status={progress.status}
                               className="flex size-4 shrink-0 items-center justify-center"
                             >
                               {progress.status === 'completed' ? (
-                                <Check className="size-4" />
-                              ) : !progress.unlocked ? (
-                                <LockKeyhole className="size-4 text-muted-foreground" />
+                                <Check
+                                  aria-hidden="true"
+                                  className="size-4 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200"
+                                />
                               ) : null}
                             </span>
                           </Button>

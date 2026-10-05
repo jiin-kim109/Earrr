@@ -278,7 +278,7 @@ describe('planned ten-question rounds', () => {
         if (index < 9) {
           expect(result.roundResult).toBeUndefined();
           expect(result.snapshot.course.round.answers).toHaveLength(index + 1);
-          expect(result.snapshot.course.lessons[1]?.unlocked).toBe(false);
+          expect(result.snapshot.course.lessons[0]?.status).not.toBe('completed');
         }
       }
       expect(result!.roundResult).toMatchObject({
@@ -375,7 +375,7 @@ describe('planned ten-question rounds', () => {
       await expect(call('submit_answer', args, id)).rejects.toThrow('Checkpoint interrupted');
       expect(await store.progress.round('pitch-direction')).toEqual(before);
       expect(await store.attempts.get(exercise.id)).toBeNull();
-      expect((await game.snapshot()).course.lessons[1]?.unlocked).toBe(false);
+      expect((await game.snapshot()).course.lessons[0]?.status).not.toBe('completed');
       spy.mockRestore();
       const completed = await call('submit_answer', args, id);
       expect(completed.roundResult?.passed).toBe(true);

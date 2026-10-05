@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { test as base, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import request from 'supertest';
 import { Store } from '../../server/db/database.js';
 import { createApp } from '../../server/app.js';
-import { skills } from '../../server/services/exercise/catalog.js';
 import { createExercise } from '../../server/services/exercise/generator.js';
 import type { Exercise, ExerciseTarget } from '../../server/types/exercise.types.js';
 import type { SkillId } from '../../shared/types/course.js';
@@ -17,8 +17,6 @@ const test = base.extend<{ engine: Engine }>({
   engine: async ({ page }, use) => {
     const store = await Store.open(':memory:');
     try {
-      for (const skill of skills)
-        await store.progress.completeLesson(skill.id, new Date().toISOString());
       const { app, game } = await createApp(
         {
           port: 3101,
@@ -352,6 +350,81 @@ test('reduced motion keeps musical listening markers static without disabling pl
   expect((await engine.game.snapshot()).session?.listened).toBeGreaterThan(0);
   expect((await engine.game.snapshot()).totalAnswers).toBe(0);
 });
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  test(`opens advanced lessons freely and marks only passed exercises at ${viewport.width}`, async ({
+    page,
+    engine,
+  }) => {
+    await page.setViewportSize(viewport);
+    await pendingQuestion(engine, 'pitch-direction', { direction: 'up' });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Start training', exact: true }).click();
+    await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+    const outline = page.getByRole('complementary', { name: 'Course outline', exact: true });
+    const openOutline = async () => {
+      if (viewport.width < 1024)
+        await page.getByRole('button', { name: 'Open lessons', exact: true }).click();
+    };
+    await openOutline();
+    const collapsed = outline.getByRole('button', { expanded: false });
+    while (await collapsed.count()) await collapsed.first().click();
+    const marks = outline.getByTestId('lesson-status');
+    await expect(marks).toHaveCount(29);
+    await expect(marks.locator('svg')).toHaveCount(0);
+    await expect(outline.getByRole('button', { name: /locked/i })).toHaveCount(0);
+    await expect(outline.getByTestId('ear-companion')).toHaveAttribute('data-tier', '0');
+    const advanced = outline.getByRole('button', { name: 'Ninth chords', exact: true });
+    await expect(advanced).toBeEnabled();
+    await advanced.click();
+    await expect(page.getByRole('heading', { name: 'Ninth chords', exact: true })).toBeVisible();
+    await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+    const selected = await engine.game.snapshot();
+    expect(selected.course.selectedLesson).toBe('extensions');
+    expect(selected.course.completedLessons).toBe(0);
+    expect(selected.totalAnswers).toBe(0);
+    const sessionId = selected.session!.id;
+    for (let index = 0; index < 8; index++) {
+      const played = await engine.game.execute({
+        callId: randomUUID(),
+        sessionId,
+        name: 'play_exercise',
+        arguments: {},
+      });
+      const exercise = (await engine.store.exercises.get(played.snapshot.current!.id))!;
+      await engine.game.execute({
+        callId: randomUUID(),
+        sessionId,
+        name: 'submit_answer',
+        arguments: { exerciseId: exercise.id, answer: exercise.expected },
+      });
+    }
+    await page.reload();
+    await page.getByRole('button', { name: 'Start training', exact: true }).click();
+    await expect(player(page).getByTestId('round-result')).toHaveText('Round passed');
+    await openOutline();
+    const completed = outline.getByRole('button', { name: 'Ninth chords, completed', exact: true });
+    await expect(completed.getByTestId('lesson-status')).toHaveAttribute(
+      'data-status',
+      'completed',
+    );
+    await expect(completed.getByTestId('lesson-status').locator('svg')).toBeVisible();
+    const row = (await completed.boundingBox())!;
+    const check = (await completed.getByTestId('lesson-status').boundingBox())!;
+    expect(check.x).toBeGreaterThan(row.x + row.width / 2);
+    await expect(outline.getByTestId('ear-companion')).toHaveAttribute('data-tier', '1');
+    await expect(outline.getByTestId('ear-companion')).toContainText('Pitch Scout');
+    expect((await engine.game.snapshot()).course.completedLessons).toBe(1);
+    await page.screenshot({
+      path: join('test-results', `open-lessons-passed-check-${viewport.width}.png`),
+      animations: 'disabled',
+      fullPage: true,
+    });
+  });
+}
 
 test.describe('short touch-screen round result', () => {
   test.use({ hasTouch: true });

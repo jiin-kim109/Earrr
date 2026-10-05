@@ -148,6 +148,7 @@ export type PresentationPart =
       kind: 'teaching';
       explanation: string;
       awaitingPractice: boolean;
+      offerSkip?: true;
       section?: 'welcome';
     }
   | { kind: 'checkpoint'; nextLesson: SkillId | null }
@@ -188,10 +189,7 @@ export interface AgentToolContext {
   lessonChoices: Array<{
     id: SkillId;
     name: string;
-    unlocked: boolean;
-    prerequisite: string | null;
-    requiredCorrect: number;
-    questions: number;
+    completed: boolean;
   }>;
   totals: { answers: number };
 }

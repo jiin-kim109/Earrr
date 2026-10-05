@@ -57,12 +57,17 @@ describe('one-lesson course and honest checkpoints', () => {
     expect((await game.snapshot()).course.lessons.every((lesson) => lesson.unlocked)).toBe(true);
   }, 15_000);
 
-  it('starts with one unlocked lesson, not two foundation chapters at once', async () => {
+  it('makes every lesson available without fabricating passed checkpoints', async () => {
     const state = await game.snapshot();
     expect(state.course.selectedLesson).toBe('pitch-direction');
     expect(
       state.course.lessons.filter((lesson) => lesson.unlocked).map((lesson) => lesson.skillId),
-    ).toEqual(['pitch-direction']);
+    ).toEqual(skills.map((skill) => skill.id));
+    expect(state.course.completedLessons).toBe(0);
+    expect(state.course.lessons.every((lesson) => lesson.status === 'not_started')).toBe(true);
+    expect(
+      game.exercises.curriculum().lessons.every((lesson) => lesson.prerequisites.length === 0),
+    ).toBe(true);
     expect(state.settings.instrument).toBe('piano');
   });
 
@@ -74,17 +79,17 @@ describe('one-lesson course and honest checkpoints', () => {
     }
   });
 
-  it('cannot bypass prerequisites by selecting a later lesson or overriding a play tool', async () => {
+  it('freely selects advanced lessons while preventing an implicit lesson change through a play tool', async () => {
     const sessionId = await begin();
     for (const name of ['select_lesson', 'adjust_session'] as const) {
-      await expect(
-        game.execute({
-          callId: randomUUID(),
-          sessionId,
-          name,
-          arguments: name === 'select_lesson' ? { skillId: 'extensions' } : { focus: 'extensions' },
-        }),
-      ).rejects.toThrow('Sixth chords exercises with 8/10');
+      const result = await game.execute({
+        callId: randomUUID(),
+        sessionId,
+        name,
+        arguments: name === 'select_lesson' ? { skillId: 'extensions' } : { focus: 'extensions' },
+      });
+      expect(result.snapshot.course.selectedLesson).toBe('extensions');
+      expect(result.snapshot.course.completedLessons).toBe(0);
     }
     await expect(
       game.execute({
@@ -94,7 +99,62 @@ describe('one-lesson course and honest checkpoints', () => {
         arguments: { skillId: 'triads' },
       }),
     ).rejects.toThrow('Stay in the selected lesson');
-    expect((await game.snapshot()).course.selectedLesson).toBe('pitch-direction');
+    expect((await game.snapshot()).course.selectedLesson).toBe('extensions');
+  });
+
+  it.each(['coach', 'solo'] as const)(
+    'starts %s directly in an advanced lesson without passing the basics',
+    async (mode) => {
+      const started = await game.execute({
+        callId: randomUUID(),
+        name: 'start_session',
+        arguments: { mode, focus: 'upper-alterations' },
+      });
+      expect(started.snapshot.course.selectedLesson).toBe('upper-alterations');
+      expect(started.snapshot.course.completedLessons).toBe(0);
+      expect(started.snapshot.session?.phase).toBe(mode === 'coach' ? 'teaching' : 'practice');
+      expect(started.snapshot.course.lessons.every((lesson) => lesson.unlocked)).toBe(true);
+      const sessionId = started.snapshot.session!.id;
+      if (mode === 'coach')
+        await game.execute({
+          callId: randomUUID(),
+          sessionId,
+          name: 'start_practice',
+          arguments: {},
+        });
+      expect((await play(sessionId)).skillId).toBe('upper-alterations');
+      expect((await game.snapshot()).course.completedLessons).toBe(0);
+    },
+  );
+
+  it('can move to the next lesson immediately after failing without a completion check', async () => {
+    const sessionId = await begin();
+    for (let index = 0; index < 3; index++) {
+      const exercise = await play(sessionId);
+      await game.execute({
+        callId: randomUUID(),
+        sessionId,
+        name: 'submit_answer',
+        arguments: {
+          exerciseId: exercise.id,
+          answer: {
+            direction: exercise.expected.direction === 'up' ? 'down' : 'up',
+          },
+        },
+      });
+    }
+    const before = await game.snapshot();
+    expect(before.course.round.previous?.passed).toBe(false);
+    expect(before.course.lessons[0]?.status).toBe('in_progress');
+    expect(before.course.completedLessons).toBe(0);
+    await game.execute({
+      callId: randomUUID(),
+      sessionId,
+      name: 'select_lesson',
+      arguments: { skillId: before.course.nextLesson },
+    });
+    expect((await play(sessionId)).skillId).toBe('intervals-foundation');
+    expect((await game.snapshot()).course.completedLessons).toBe(0);
   });
 
   it('locks every new random question to the selected lesson and pauses at a passed checkpoint', async () => {

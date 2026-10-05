@@ -89,7 +89,7 @@ async function send(page: Page, text: string) {
 async function assertOrderedFeedback(page: Page, state: Snapshot) {
   const text = (await readCurrentMessages(page)).at(-1)?.text ?? '';
   const nextAt = text.search(/\bnext\b/i);
-  const feedbackAt = text.search(/correct|incorrect|not quite/i);
+  const feedbackAt = text.search(/\b(?:correct|incorrect|right|yes|exactly)\b|not quite/i);
   expect(feedbackAt, 'A verdict precedes the transition').toBeGreaterThanOrEqual(0);
   expect(nextAt).toBeGreaterThan(feedbackAt);
   const feedback = text.slice(0, nextAt);

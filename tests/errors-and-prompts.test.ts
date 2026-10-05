@@ -77,6 +77,11 @@ describe('server-owned Jinja prompt templates', () => {
     expect(presentationInstructions('feedback')).toContain('parts in order');
     expect(presentationInstructions('feedback')).toContain('entire current presentation');
     expect(presentationInstructions('feedback')).toContain('handled outside your response');
+    expect(presentationInstructions('feedback')).toContain('one short sentence plus that cue');
+    expect(presentationInstructions('feedback')).toContain(
+      'without reading octave numbers or semitone counts',
+    );
+    expect(presentationInstructions('feedback')).toContain('reference or missing-position clues');
     expect(presentationInstructions('teaching')).toContain('entire current presentation');
     expect(presentationInstructions('instruction')).toContain('musical question');
     expect(presentationInstructions('cue')).toContain('next-question cue');

@@ -4,7 +4,6 @@ import type { Store } from '../db/database.js';
 import { AppError } from '../errors/app-error.js';
 import type { ActionEffect } from '../types/action.types.js';
 import type { Session, LessonPosition } from '../types/session.types.js';
-import { ProgressService } from './progress.service.js';
 import { newTeachingProgress } from './exercise/exercise.service.js';
 import { normalizeTeachingProgress } from './exercise/teaching-progress.js';
 import { getSkill, skills } from './exercise/catalog.js';
@@ -38,7 +37,6 @@ export class SessionService {
   private readonly negotiations = new Map<string, number[]>();
   constructor(
     private readonly store: Store,
-    private readonly progress: ProgressService,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -80,7 +78,7 @@ export class SessionService {
       !options.focus || options.focus === 'adaptive'
         ? await this.store.progress.selectedLesson()
         : options.focus;
-    await this.requireUnlocked(focus);
+    getSkill(focus);
     await this.store.progress.selectLesson(focus);
 
     const mode = options.mode ?? 'coach';
@@ -145,7 +143,7 @@ export class SessionService {
   }
 
   async select(skillId: SkillId, sessionId?: string): Promise<ActionEffect> {
-    await this.requireUnlocked(skillId);
+    getSkill(skillId);
     const session = await this.store.sessions.active();
     if (session && sessionId !== session.id) {
       throw AppError.create('session_changed');
@@ -249,18 +247,6 @@ export class SessionService {
     };
   }
 
-  private async requireUnlocked(skillId: SkillId) {
-    const lesson = (await this.progress.course()).lessons.find((item) => item.skillId === skillId);
-    if (!lesson?.unlocked) {
-      const index = skills.findIndex((skill) => skill.id === skillId);
-      const previous = skills[index - 1];
-      throw AppError.create(
-        'lesson_locked',
-        `${getSkill(skillId).shortName} is locked. Pass ${previous ? previous.shortName : 'the previous lesson'} exercises with 8/10 to unlock it.`,
-      );
-    }
-  }
-
   async normalizeTutorialPositions() {
     await this.store.transaction(async () => {
       let changed = false;
@@ -345,7 +331,7 @@ export class SessionService {
                   ? { transcription: { model: config.transcriptionDeployment, language: 'en' } }
                   : {}),
               },
-              output: { voice: snapshot.settings.voice },
+              output: { voice: snapshot.settings.voice, speed: 1.2 },
             },
           },
         }),

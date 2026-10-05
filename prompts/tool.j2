@@ -23,9 +23,9 @@ Inspect the actual lesson, checkpoint, scores, and course state.
 {%- elif name == "review_answer" -%}
 Read the saved verdict for the last answer without grading again.
 {%- elif name == "select_lesson" -%}
-Select another unlocked lesson only on the player's explicit request. The server prepares its introduction/question if active.
+Select any listed lesson on the player's explicit request; no prerequisite test is needed. The server prepares its introduction/question if active.
 {%- elif name == "adjust_session" -%}
-Legacy alias for selecting an unlocked lesson. Prefer select_lesson.
+Legacy alias for selecting any listed lesson. Prefer select_lesson.
 {%- elif name == "teach_lesson" -%}
 Teach/review this lesson. restart=true begins the introduction; stepId selects a named demo. No scoring. Existing questions stay parked by default. Only supply discardRoundId when the learner explicitly confirmed resetting the current round; use course.round.id (or null if no round exists). That clears the active round, never saved learning history.
 {%- elif name == "continue_teaching" -%}

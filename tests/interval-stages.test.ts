@@ -60,7 +60,7 @@ describe('two direct interval practice stages', () => {
     expect(skills).toHaveLength(29);
     expect(
       (await game.snapshot()).course.lessons.slice(0, 4).map((lesson) => lesson.unlocked),
-    ).toEqual([true, true, false, false]);
+    ).toEqual([true, true, true, true]);
   });
 
   it.each(['intervals-foundation', 'intervals-harmonic'] as const)(

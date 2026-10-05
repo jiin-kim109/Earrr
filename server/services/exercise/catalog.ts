@@ -238,9 +238,8 @@ export const skills: Skill[] = [
     5,
     'C7#11 and C7b13 retain the natural fifth.',
   ),
-].map((skill, index, sequence) => ({
+].map((skill, index) => ({
   ...skill,
-  prerequisites: index ? [sequence[index - 1]!.id] : [],
   symbol: String(index + 1).padStart(2, '0'),
 }));
 

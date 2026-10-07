@@ -1166,6 +1166,46 @@ test('shows the waveform only during coach speech and no unsolicited speaker for
   await expect(page.getByTestId('coach-waveform')).toHaveAttribute('data-active', 'false');
 });
 
+test('replays safely when browser translation has replaced button text nodes', async ({
+  page,
+  request,
+}) => {
+  await controlledCoach(page);
+  await page.goto('/');
+  await enter(page);
+  if ((await player(page).getAttribute('data-mode')) === 'teaching')
+    await page.getByRole('button', { name: /^(Skip tutorial|Start exercises)$/ }).click();
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').ready()))
+    .toBe(true);
+  await page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').tool('play_exercise', {}));
+  await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  const before: Snapshot = await (await request.get('/api/state')).json();
+  const replay = player(page).getByRole('button', { name: 'Hear again', exact: true });
+  const replaced = await replay.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const nodes: Node[] = [];
+    while (walker.nextNode())
+      if (walker.currentNode.textContent?.trim()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const outer = document.createElement('font');
+      const inner = document.createElement('font');
+      inner.textContent = node.textContent;
+      outer.append(inner);
+      node.parentNode!.replaceChild(outer, node);
+    }
+    return nodes.length;
+  });
+  expect(replaced).toBeGreaterThan(0);
+  await replay.click();
+  await expect(player(page).getByTestId('replay-indicator')).toBeVisible();
+  await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  await expect(page.getByRole('alertdialog', { name: 'Something went wrong' })).toHaveCount(0);
+  const after: Snapshot = await (await request.get('/api/state')).json();
+  expect(after.current?.id).toBe(before.current?.id);
+  expect(after.totalAnswers).toBe(before.totalAnswers);
+});
+
 test('shares one mobile workspace without page scrolling and preserves interactive notes', async ({
   page,
 }) => {

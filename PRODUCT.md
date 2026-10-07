@@ -86,6 +86,9 @@ without excessive praise. The player is treated as a musician at every level.
     captions. Natural variations in spoken phrasing are acceptable. Do not add
     a second narrator, verbatim-speech verification, or a speech-delivery gate
     to deterministic scoring. Preserve causal tool/result and playback order.
+    Native WebRTC VAD owns speech cancellation and truncation. Do not send
+    a second cancellation/buffer clear after its speech-start event; keyboard
+    and button interruptions still explicitly stop output.
 12. Entry has one action regardless of input hardware. A missing or disabled
     microphone never blocks the course; typing remains available. The in-lesson
     microphone control accurately reflects off, unavailable, and active states.
@@ -287,6 +290,8 @@ without excessive praise. The player is treated as a musician at every level.
     Keep the in-game visualizer visible and independent of music playback.
     During Hear again, keep Your turn unchanged and show a small, local,
     reduced-motion-safe speaker indicator, including answer-review popups.
+    Keep dynamic control captions inside stable text elements so browser
+    translation cannot detach a sibling anchor used when its icon changes.
 44. Bound native Realtime context with retention-ratio truncation and a lower
     conversation-token budget. Keep recent literal messages and authoritative
     musical state. Separate summary calls are not needed for cost control;

@@ -320,6 +320,81 @@ describe('causal single-stream turns', () => {
     expect(messages.map((item) => item.role)).toEqual(['assistant', 'user', 'assistant']);
     expect(messages[1]?.text).toBe('Play again.');
   });
+  it.each([false, true])(
+    'does not repeat the provider-owned voice interruption when generation has finished: %s',
+    async (generationFinished) => {
+      await tool('play_exercise');
+      const id = created();
+      emit({ type: 'output_audio_buffer.started', response_id: id });
+      emit({
+        type: 'response.output_audio_transcript.delta',
+        response_id: id,
+        delta: 'Listen to this example.',
+      });
+      if (generationFinished) done(id);
+      const before = sent.length;
+      emit({ type: 'input_audio_buffer.speech_started', item_id: 'voice-interruption' });
+      emit({ type: 'input_audio_buffer.speech_started', item_id: 'voice-interruption' });
+      expect(
+        sent
+          .slice(before)
+          .filter((event) =>
+            ['response.cancel', 'output_audio_buffer.clear'].includes(String(event.type)),
+          ),
+      ).toEqual([]);
+      if (!generationFinished)
+        emit({ type: 'response.done', response: { id, status: 'cancelled', output: [] } });
+      emit({ type: 'output_audio_buffer.cleared', response_id: id });
+      const count = responses().length;
+      emit({ type: 'input_audio_buffer.committed', item_id: 'voice-interruption' });
+      expect(responses()).toHaveLength(count + 1);
+      expect(messages.find((item) => item.id === `assistant:${id}`)?.delivery).toBe('interrupted');
+      expect(after).not.toHaveBeenCalled();
+      expect(errors).toEqual([]);
+    },
+  );
+  it.each([false, true])(
+    'still cancels keyboard interruptions when generation has finished: %s',
+    async (generationFinished) => {
+      await tool('play_exercise');
+      const id = created();
+      emit({ type: 'output_audio_buffer.started', response_id: id });
+      if (generationFinished) done(id);
+      const before = sent.length;
+      loop.text('Wait, pause instead.');
+      expect(
+        sent
+          .slice(before)
+          .filter((event) =>
+            ['response.cancel', 'output_audio_buffer.clear'].includes(String(event.type)),
+          ),
+      ).toEqual([
+        ...(!generationFinished ? [{ type: 'response.cancel' }] : []),
+        { type: 'output_audio_buffer.clear' },
+      ]);
+    },
+  );
+  it('still cancels a manually committed voice turn that had no automatic VAD interruption', async () => {
+    await tool('play_exercise');
+    created();
+    const before = sent.length;
+    emit({ type: 'input_audio_buffer.committed', item_id: 'manual-voice' });
+    expect(
+      sent
+        .slice(before)
+        .filter((event) =>
+          ['response.cancel', 'output_audio_buffer.clear'].includes(String(event.type)),
+        ),
+    ).toEqual([{ type: 'response.cancel' }, { type: 'output_audio_buffer.clear' }]);
+  });
+  it.each([
+    ['session_expired', 'Your session hit the maximum duration of 60 minutes.'],
+    ['server_error', 'The provider could not process this turn.'],
+    ['invalid_value', 'An unrelated request parameter is invalid.'],
+  ])('continues to report real provider failures: %s', (code, message) => {
+    emit({ type: 'error', error: { code, message } });
+    expect(errors).toEqual([message]);
+  });
   it('does not play queued notes after speech was interrupted', async () => {
     await tool('play_exercise');
     const id = created();

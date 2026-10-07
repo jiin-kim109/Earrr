@@ -85,7 +85,9 @@ export function PlayerControls() {
         }}
       >
         {welcome || teaching.awaitingPractice ? <ArrowRight /> : <SkipForward />}
-        {welcome ? "Let's begin" : teaching.awaitingPractice ? 'Start exercises' : 'Skip'}
+        <span>
+          {welcome ? "Let's begin" : teaching.awaitingPractice ? 'Start exercises' : 'Skip'}
+        </span>
       </Button>
     );
   if (session?.awaitingRoundChoice)
@@ -132,7 +134,7 @@ export function PlayerControls() {
       }}
     >
       {nextQuestion ? <ArrowRight /> : replaying ? <ReplayIndicator /> : <RotateCcw />}
-      {nextRound ? 'Next round' : nextQuestion ? 'Next question' : 'Hear again'}
+      <span>{nextRound ? 'Next round' : nextQuestion ? 'Next question' : 'Hear again'}</span>
     </Button>
   );
 }

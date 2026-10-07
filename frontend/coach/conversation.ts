@@ -80,12 +80,12 @@ export class Conversation {
     this.handlers.stopMusic();
   }
 
-  begin(): number {
+  begin(providerInterrupted = false): number {
     const oldTurn = this.turn;
     const speaking = [...this.responses.values()].some(
       (run) => run.request.turn === oldTurn && run.audio && !run.drained && !run.settled,
     );
-    if (this.connection.connected && (this.active || speaking))
+    if (!providerInterrupted && this.connection.connected && (this.active || speaking))
       this.connection.cancel(this.active !== null);
     for (const response of this.responses.values()) {
       if (response.request.turn === oldTurn && !response.settled && response.text) {
@@ -178,10 +178,10 @@ export class Conversation {
     this.active = { request };
     this.connection.respond(request);
   }
-  private voiceTurn(id: string) {
+  private voiceTurn(id: string, providerInterrupted = false) {
     let turn = this.voiceTurns.get(id);
     if (turn === undefined) {
-      turn = this.begin();
+      turn = this.begin(providerInterrupted);
       this.voiceTurns.set(id, turn);
       this.handlers.message('user', 'Listening…', `user:${id}`, false);
     }
@@ -197,7 +197,8 @@ export class Conversation {
     const run = event.response_id ? this.responses.get(event.response_id) : undefined;
     switch (event.type) {
       case 'input_audio_buffer.speech_started':
-        if (event.item_id) this.voiceTurn(event.item_id);
+        // WebRTC VAD already cancels and truncates speech with interrupt_response enabled.
+        if (event.item_id) this.voiceTurn(event.item_id, true);
         this.handlers.phase('hearing');
         break;
       case 'input_audio_buffer.committed':

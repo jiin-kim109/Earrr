@@ -269,6 +269,25 @@ available, and unknown public paths return 404 rather than duplicate app HTML.
 Fingerprint-named build assets use one-year immutable caching. Search indexing
 and rich-result appearance are not guaranteed by these changes.
 
+### Product feedback
+
+Apply `supabase/migrations/20261006180000_earrr_feedback.sql` before deploying
+the feedback endpoint. It creates the service-only `earrr_feedback` table,
+with one row per verified account or guest `actor_id`. Repeated submissions
+merge into that row, retaining its original creation time and replacing the
+rating, message, optional reply email and latest session context.
+
+The training header opens a small usefulness-rating form. Reply defaults to
+No; opting in reveals an editable email, prefilled when signed in. A confirmed
+save animates the Submit label into a green check and closes after one second.
+Reduced motion uses a static check. Failed delivery closes quietly without
+showing a false success; it is diagnostic-only and is not retried.
+
+Feedback text and email are not logged to raw analytics or copied into learning
+archives. Clients cannot read or write the table directly. Local single-player
+previews use a persistent `earrr_feedback` table in their existing SQLite
+database, under the `local` owner key.
+
 Build into an isolated output instead of replacing a running local server's `dist`:
 
 ```powershell

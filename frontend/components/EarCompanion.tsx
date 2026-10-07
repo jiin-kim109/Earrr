@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Curriculum } from '../../shared/types/course.js';
 import type { CourseState } from '../../server/types/progress.types.js';
 import { useStudio } from '../studio/studio.js';
+import { EarFace } from './EarFace.js';
 
 const ranks = [
   { name: 'Rookie Ear', color: 'oklch(43% .012 80)' },
@@ -147,73 +148,7 @@ export function EarCompanion() {
             transform={`rotate(${(index - (rank.tier - 1) / 2) * 18} 90 65)`}
           />
         ))}
-        <g data-part="left-ear" className="origin-right [transform-box:fill-box]">
-          <path
-            d="M64 50C61 31 40 27 29 42C15 61 25 77 39 82C46 85 43 96 53 96C65 96 70 73 64 50Z"
-            className="fill-card"
-            stroke="currentColor"
-            strokeWidth="2"
-          />
-          <path
-            d="M49 43C35 37 27 54 37 63C45 68 36 75 44 79M45 51C38 50 37 57 43 60"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </g>
-        <g data-part="right-ear" className="origin-left [transform-box:fill-box]">
-          <path
-            d="M116 50C119 31 140 27 151 42C165 61 155 77 141 82C134 85 137 96 127 96C115 96 110 73 116 50Z"
-            className="fill-card"
-            stroke="currentColor"
-            strokeWidth="2"
-          />
-          <path
-            d="M131 43C145 37 153 54 143 63C135 68 144 75 136 79M135 51C142 50 143 57 137 60"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </g>
-        <g data-part="face" className="origin-center [transform-box:fill-box]">
-          <path
-            d="M65 51C69 35 111 35 115 51L119 79C119 98 61 98 61 79Z"
-            className="fill-card"
-            stroke="currentColor"
-            strokeWidth="2"
-          />
-          <path
-            d="M69 86q21 12 42 0"
-            stroke="currentColor"
-            opacity=".12"
-            strokeWidth="5"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <g data-part="eyes">
-            <ellipse cx="79" cy="62" rx="3" ry="4" fill="currentColor" />
-            <ellipse
-              data-part="right-eye"
-              cx="101"
-              cy="62"
-              rx="3"
-              ry="4"
-              fill="currentColor"
-              className="origin-center [transform-box:fill-box]"
-            />
-            <path
-              d="M84 74q6 6 12 0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </g>
-          <circle cx="71" cy="72" r="4" fill="currentColor" opacity=".1" />
-          <circle cx="109" cy="72" r="4" fill="currentColor" opacity=".1" />
-        </g>
+        <EarFace />
         <g
           data-part="note"
           opacity="0"

@@ -59,6 +59,7 @@ const definitions = {
     503,
     'Cloud progress could not be confirmed. Refresh before retrying; guest progress has not been deleted.',
   ],
+  feedback_storage_unavailable: [503, 'Feedback storage is unavailable.'],
   cloud_save_conflict: [
     409,
     'Progress changed in another tab or device. Refresh to load it before continuing.',

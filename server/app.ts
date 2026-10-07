@@ -13,6 +13,8 @@ import { WorkspaceDirectory } from './services/storage/workspace.js';
 import { Store } from './db/database.js';
 import { Log, requestLogContext } from './services/log.service.js';
 import { logRoutes } from './controllers/log.controller.js';
+import { feedbackRoutes } from './controllers/feedback.controller.js';
+import { FeedbackRepository } from './repositories/feedback.repository.js';
 
 import express from 'express';
 import type { Express } from 'express';
@@ -37,6 +39,9 @@ export async function createApp(
     storage instanceof Store
       ? await AgentService.create(storage, config.configured, config.deployment)
       : undefined;
+  const feedback = new FeedbackRepository(
+    storage instanceof Store ? storage.db : storage.cloud.client,
+  );
 
   app.disable('x-powered-by');
   app.use(securityHeaders);
@@ -86,6 +91,7 @@ export async function createApp(
     });
   app.use('/api', agentRoutes());
   app.use('/api', userRoutes());
+  app.use('/api', feedbackRoutes(feedback));
   app.use('/api', exerciseRoutes());
   app.use('/api', conversationRoutes());
   app.use('/api', sessionRoutes(config, fetcher));

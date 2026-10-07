@@ -16,6 +16,15 @@ export async function initializeSchema(db: Database): Promise<number> {
       id INTEGER PRIMARY KEY CHECK (id = 1),
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS earrr_feedback (
+      actor_id TEXT PRIMARY KEY,
+      session_id TEXT,
+      rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+      message TEXT NOT NULL CHECK(length(message) BETWEEN 1 AND 4000),
+      reply_email TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       status TEXT NOT NULL,

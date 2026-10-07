@@ -32,9 +32,11 @@ describe('layered server and contract-only shared code', () => {
         .sort(),
     ).toEqual([
       'schemas/course.ts',
+      'schemas/feedback.ts',
       'schemas/logging.ts',
       'schemas/user.ts',
       'types/course.ts',
+      'types/feedback.ts',
       'types/logging.ts',
       'types/user.ts',
     ]);

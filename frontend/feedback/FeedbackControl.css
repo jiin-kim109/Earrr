@@ -1,0 +1,64 @@
+.feedback-submit-label {
+  transition:
+    opacity 160ms ease-out,
+    transform 200ms var(--ease-out-expo);
+}
+
+.feedback-submit-check {
+  opacity: 0;
+}
+
+.feedback-submit-check path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.feedback-submit[data-feedback-state='sent'] .feedback-submit-label {
+  opacity: 0;
+  transform: translateY(-0.25rem);
+}
+
+.feedback-submit[data-feedback-state='sent'] .feedback-submit-check {
+  animation: feedback-check-appear 220ms 60ms var(--ease-out-expo) both;
+}
+
+.feedback-submit[data-feedback-state='sent'] .feedback-submit-check path {
+  animation: feedback-check-draw 280ms 100ms var(--ease-out-expo) both;
+}
+
+@keyframes feedback-check-appear {
+  from {
+    opacity: 0;
+    transform: translateY(0.2rem) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes feedback-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-submit-label {
+    transition: none;
+  }
+
+  .feedback-submit[data-feedback-state='sent'] .feedback-submit-label {
+    transform: none;
+  }
+
+  .feedback-submit[data-feedback-state='sent'] .feedback-submit-check {
+    opacity: 1;
+    animation: none;
+  }
+
+  .feedback-submit[data-feedback-state='sent'] .feedback-submit-check path {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}

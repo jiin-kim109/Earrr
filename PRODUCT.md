@@ -396,6 +396,29 @@ without excessive praise. The player is treated as a musician at every level.
     AI tutor." and the concise description "Simple, hands-free ear training with
     an AI tutor. Practice pitch, intervals and chords." Do not use work/background
     scenarios in marketing copy; background practice remains supported behavior.
+61. Put Feedback with a small comment icon immediately before the
+    account/login control in the training header, not on the entry screen.
+    The modal asks how useful the app has been for the player's ear training
+    using five face-only expressions from the ear companion, without ears in the
+    ratings. Keep Not useful and Very useful centered above the first/last face.
+    Require a rating and a
+    short feedback message. Reply choice defaults to No; Yes reveals a reply
+    email prefilled from the signed-in account when available, otherwise show
+    your-email@example.com as its placeholder. Use slightly lighter placeholder
+    text weight without reducing text contrast. Never submit
+    that address without the explicit Yes choice. Use one quiet Submit action,
+    matching the existing neutral surfaces, font, focus and reduced-motion
+    behavior. A successful save fades Submit into a drawn green check inside
+    the same button, then dismisses the modal after a short one-second hold.
+    Keep its geometry stable, use restrained transform/opacity/stroke motion,
+    and show a static check for reduced motion. Disable repeat submission while
+    pending and clear dismissal timers when the modal closes. Failed best-effort
+    delivery closes quietly without a false check, is diagnostic-only, and
+    never blocks practice.
+    Store one latest feedback row per verified guest/account, updating it
+    server-side without duplicate-status UI. Local preview uses its single
+    player identity and persistent SQLite table. Feedback is separate from
+    learning archives and raw analytics; do not log message/email contents.
 
 ## Ear-training design references
 

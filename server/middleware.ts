@@ -4,8 +4,18 @@ import type { Config } from './config/environment.js';
 import { AppError } from './errors/app-error.js';
 
 export function realtimeClientIp(req: Request, config: Pick<Config, 'azureAppService'>) {
-  const address = config.azureAppService ? req.get('x-client-ip') : req.socket.remoteAddress;
-  if (!address || !isIP(address)) throw AppError.create('client_ip_unavailable');
+  let address = config.azureAppService ? req.get('client-ip') : req.socket.remoteAddress;
+  if (config.azureAppService && address) {
+    const endpoint = /^\[([^\]]+)\]:(\d{1,5})$/.exec(address) ?? /^(.*):(\d{1,5})$/.exec(address);
+    if (endpoint && Number(endpoint[2]) <= 65535 && isIP(endpoint[1]!)) address = endpoint[1];
+  }
+  if (!address || !isIP(address))
+    throw AppError.create(
+      'client_ip_unavailable',
+      address
+        ? 'The voice connection IP endpoint is invalid.'
+        : 'The platform did not supply the voice connection IP.',
+    );
   if (isIP(address) === 4) return address;
   const normalized = new URL(`http://[${address}]`).hostname.slice(1, -1);
   const mapped = /^::ffff:([a-f0-9]{1,4}):([a-f0-9]{1,4})$/.exec(normalized);

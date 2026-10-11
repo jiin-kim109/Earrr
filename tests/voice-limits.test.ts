@@ -270,15 +270,31 @@ it('uses only the Azure-overwritten IP in App Service, normalizes IPv6 and ignor
   );
   app.get('/local', (req, res) => res.json({ ip: realtimeClientIp(req, {}) }));
   app.use(requestErrors(config));
-  for (const value of ['::FFFF:192.0.2.1', '::ffff:c000:201'])
-    expect((await request(app).get('/azure').set('x-client-ip', value)).body.ip).toBe('192.0.2.1');
-  expect((await request(app).get('/azure').set('x-client-ip', '2001:0DB8:0:0::1')).body.ip).toBe(
+  for (const value of [
+    '192.0.2.1:50000',
+    '192.0.2.1:50001',
+    '::FFFF:192.0.2.1',
+    '[::ffff:c000:201]:443',
+  ])
+    expect((await request(app).get('/azure').set('client-ip', value)).body.ip).toBe('192.0.2.1');
+  expect(
+    (await request(app).get('/azure').set('client-ip', '[2001:0DB8:0:0::1]:443')).body.ip,
+  ).toBe('2001:db8::1');
+  expect((await request(app).get('/azure').set('client-ip', '2001:db8::1:54321')).body.ip).toBe(
     '2001:db8::1',
   );
+  const trusted = await request(app)
+    .get('/azure')
+    .set('client-ip', '203.0.113.1:50000')
+    .set('x-client-ip', '192.0.2.1')
+    .set('x-forwarded-for', '192.0.2.2');
+  expect(trusted.body.ip).toBe('203.0.113.1');
   await request(app).get('/azure').set('x-forwarded-for', '192.0.2.1').expect(503);
-  await request(app).get('/azure').set('x-client-ip', 'invalid').expect(503);
+  await request(app).get('/azure').set('client-ip', 'invalid').expect(503);
+  await request(app).get('/azure').set('client-ip', '192.0.2.1:65536').expect(503);
   const local = await request(app)
     .get('/local')
+    .set('client-ip', '192.0.2.3:443')
     .set('x-client-ip', '192.0.2.1')
     .set('x-forwarded-for', '192.0.2.2');
   expect(local.body.ip).toBe('127.0.0.1');

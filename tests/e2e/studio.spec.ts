@@ -548,6 +548,36 @@ test('plays piano keys and guitar string/fret notes without scoring practice', a
   });
 });
 
+test('keeps intro branding and the instrument unselectable and undraggable without disabling note input', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const music = page.getByTestId('setup-music');
+  await expect(music.getByTestId('setup-tagline')).toHaveCSS('user-select', 'none');
+  const image = music.getByRole('img', { name: 'Earrr', exact: true });
+  await expect(image).toHaveAttribute('draggable', 'false');
+  const tagline = await music.getByTestId('setup-tagline').boundingBox();
+  expect(tagline).not.toBeNull();
+  await page.mouse.move(tagline!.x + 5, tagline!.y + tagline!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tagline!.x + tagline!.width - 5, tagline!.y + tagline!.height / 2, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  expect(await page.evaluate(() => getSelection()?.toString())).toBe('');
+  expect(
+    await music.evaluate((element) => {
+      const event = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  ).toBe(true);
+  const key = music.getByRole('button', { name: 'Play C4', exact: true });
+  await key.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(music.getByRole('button', { name: 'Play C sharp4', exact: true })).toBeFocused();
+});
+
 test('starts practice with one click, shows musical playback, and removes redundant controls', async ({
   page,
   request,
@@ -1615,6 +1645,34 @@ test('disconnects into a blurred refresh toast without background reconnection',
   await expect(page.getByTestId('fatal-toast')).toHaveCount(0);
   expect(connections).toBe(1);
 });
+
+for (const [status, code] of [
+  [409, 'voice_connection_in_use'],
+  [429, 'voice_usage_limited'],
+] as const) {
+  test(`${code} uses the existing blurred refresh surface without automatic retry`, async ({
+    page,
+  }) => {
+    await mockConfigured(page);
+    let connections = 0;
+    await page.route('**/api/realtime/connect', (route) => {
+      connections++;
+      return route.fulfill({
+        status,
+        json: { error: { code, message: 'Voice connection blocked.' } },
+      });
+    });
+    await page.goto('/');
+    await enter(page);
+    const failure = page.getByRole('alertdialog', { name: 'Something went wrong', exact: true });
+    await expect(failure).toBeVisible();
+    await expect(page.getByTestId('fatal-backdrop')).toHaveCSS('backdrop-filter', 'blur(3px)');
+    await expect(failure.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await page.waitForTimeout(1200);
+    expect(connections).toBe(1);
+  });
+}
 
 test('keeps the refresh toast reachable on a narrow screen after a realtime error', async ({
   page,

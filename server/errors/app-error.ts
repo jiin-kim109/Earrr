@@ -101,6 +101,16 @@ const definitions = {
     429,
     'Too many connection attempts. Wait a minute, then reconnect; your practice is saved.',
   ],
+  voice_connection_in_use: [
+    409,
+    'Another voice connection is already active on this network. Close it before refreshing.',
+  ],
+  voice_usage_limited: [
+    429,
+    'This network exceeded the voice usage limit. Wait five minutes before refreshing.',
+  ],
+  voice_limit_unavailable: [503, 'Voice usage protection is unavailable. Refresh to try again.'],
+  client_ip_unavailable: [503, 'The voice connection address could not be verified.'],
   local_only: [403, 'Earrr is a local single-player app. Access it through localhost.'],
   cross_origin: [403, 'Cross-origin access to the local practice server is not allowed.'],
   client_header_required: [403, 'This action must come from the local Earrr app.'],

@@ -25,6 +25,12 @@ export async function initializeSchema(db: Database): Promise<number> {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS earrr_voice_limits (
+      ip_key TEXT PRIMARY KEY,
+      revision INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       status TEXT NOT NULL,

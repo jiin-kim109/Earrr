@@ -287,7 +287,7 @@ export class SessionService {
     signal: AbortSignal,
     fetcher: typeof fetch = fetch,
     client = 'local',
-  ): Promise<string> {
+  ): Promise<{ answer: string; callId: string }> {
     const session = await this.store.sessions.get(sessionId);
     if (!session || session.status !== 'active' || session.mode !== 'coach') {
       throw AppError.create('session_not_ready');
@@ -349,7 +349,12 @@ export class SessionService {
     });
     if (!response.ok) await providerError(response, config);
     const answer = await response.text();
-    if (!answer.startsWith('v=0')) throw AppError.create('azure_sdp_invalid');
-    return answer;
+    const location = response.headers.get('location');
+    const callId = location
+      ? new URL(location, config.azureEndpoint).pathname.split('/').at(-1)
+      : null;
+    if (!callId || !/^rtc_[a-zA-Z0-9_-]+$/.test(callId))
+      throw AppError.create('azure_session_invalid');
+    return { answer, callId };
   }
 }

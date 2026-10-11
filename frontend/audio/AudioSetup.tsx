@@ -28,7 +28,8 @@ export function AudioSetup({
       >
         <div
           data-testid="setup-music"
-          className="mx-auto flex w-full min-w-0 max-w-[600px] flex-col gap-4 lg:gap-5"
+          className="mx-auto flex w-full min-w-0 max-w-[600px] flex-col gap-4 select-none lg:gap-5"
+          onDragStart={(event) => event.preventDefault()}
         >
           <header className="text-center">
             <h1>

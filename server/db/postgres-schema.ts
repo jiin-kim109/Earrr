@@ -15,6 +15,12 @@ export async function initializePostgres(db: Database) {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS earrr_voice_limits (
+        ip_key TEXT PRIMARY KEY,
+        revision INTEGER NOT NULL,
+        data TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, status TEXT NOT NULL, started_at TEXT NOT NULL, data TEXT NOT NULL);
       CREATE UNIQUE INDEX IF NOT EXISTS one_open_session ON sessions((1)) WHERE status <> 'ended';
       CREATE TABLE IF NOT EXISTS exercises (seq BIGSERIAL UNIQUE, id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), created_at TEXT NOT NULL, data TEXT NOT NULL);

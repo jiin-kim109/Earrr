@@ -16,6 +16,8 @@ export function isFatalError(error: unknown): boolean {
         'invalid_auth_session',
         'cloud_save_conflict',
         'invalid_learning_save',
+        'voice_connection_in_use',
+        'voice_usage_limited',
       ].includes(error.code)
     );
   }

@@ -7,6 +7,7 @@ import type { ToolName, ToolResult } from '../server/types/agent.types.js';
 import { parseSoloAnswer } from '../server/services/grading.service.js';
 import { publicExercise } from '../server/services/exercise/exercise.service.js';
 import { skills } from '../server/services/exercise/catalog.js';
+import { createVoiceFixture } from './voice-fixture.js';
 
 import request from 'supertest';
 
@@ -23,6 +24,7 @@ let store: Store;
 let app: Awaited<ReturnType<typeof createApp>>['app'];
 let game: Awaited<ReturnType<typeof createApp>>['game'];
 let sessionId: string;
+let voice: Awaited<ReturnType<typeof createVoiceFixture>> | undefined;
 
 const tool = (name: ToolName, args: Record<string, unknown> = {}, callId = randomUUID()) =>
   request(app)
@@ -31,11 +33,15 @@ const tool = (name: ToolName, args: Record<string, unknown> = {}, callId = rando
     .send({ callId, name, arguments: args, ...(sessionId ? { sessionId } : {}) });
 
 beforeEach(async () => {
+  voice = undefined;
   store = await Store.open(':memory:');
   ({ app, game } = await createApp(config, store));
   sessionId = '';
 });
-afterEach(async () => await store.close());
+afterEach(async () => {
+  await voice?.close();
+  await store.close();
+});
 
 async function start(focus = 'triads', mode = 'solo') {
   for (const skill of skills.slice(
@@ -392,9 +398,13 @@ describe('server-only realtime negotiation', () => {
       requests++;
       return String(input).endsWith('client_secrets')
         ? Response.json({ value: 'ephemeral-test-token' })
-        : new Response('v=0\r\ns=session-test\r\n', { status: 201 });
+        : new Response('v=0\r\ns=session-test\r\n', {
+            status: 201,
+            headers: { Location: '/v1/realtime/calls/rtc_session_test' },
+          });
     };
-    app = (await createApp(config, store, fetcher)).app;
+    voice = await createVoiceFixture(config, store);
+    app = (await createApp(config, store, fetcher, voice.calls)).app;
     const connect = () =>
       request(app)
         .post('/api/realtime/connect')
@@ -405,7 +415,10 @@ describe('server-only realtime negotiation', () => {
     expect((await connect()).body.error.code).toBe('session_not_ready');
     expect(requests).toBe(0);
     await tool('resume_session');
-    for (let attempt = 0; attempt < 8; attempt++) await connect().expect(200);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await connect().expect(200);
+      await voice.disconnected();
+    }
     const limited = await connect().expect(429);
     expect(limited.body.error.code).toBe('reconnect_rate_limited');
     expect(requests).toBe(16);
@@ -429,9 +442,13 @@ describe('server-only realtime negotiation', () => {
       }
       return url.endsWith('client_secrets')
         ? Response.json({ value: 'ephemeral-secret-for-unit-test' })
-        : new Response('v=0\r\ns=unit-test-answer\r\n', { status: 201 });
+        : new Response('v=0\r\ns=unit-test-answer\r\n', {
+            status: 201,
+            headers: { Location: '/v1/realtime/calls/rtc_secret_test' },
+          });
     };
-    app = (await createApp(config, store, fetcher)).app;
+    voice = await createVoiceFixture(config, store);
+    app = (await createApp(config, store, fetcher, voice.calls)).app;
     await start('triads', 'coach');
     const response = await request(app)
       .post('/api/realtime/connect')

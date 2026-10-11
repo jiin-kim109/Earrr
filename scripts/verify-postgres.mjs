@@ -63,6 +63,7 @@ try {
       'tests/logging.test.ts',
       'tests/interval-revision.test.ts',
       'tests/feedback.test.ts',
+      'tests/voice-limits.test.ts',
       '--reporter=dot',
     ],
     {

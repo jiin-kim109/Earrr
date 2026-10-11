@@ -15,6 +15,8 @@ import { Log, requestLogContext } from './services/log.service.js';
 import { logRoutes } from './controllers/log.controller.js';
 import { feedbackRoutes } from './controllers/feedback.controller.js';
 import { FeedbackRepository } from './repositories/feedback.repository.js';
+import { VoiceLimitRepository } from './repositories/voice-limit.repository.js';
+import { RealtimeCallService } from './services/realtime-call.service.js';
 
 import express from 'express';
 import type { Express } from 'express';
@@ -23,16 +25,19 @@ export function createApp(
   config: Config,
   storage: WorkspaceDirectory,
   fetcher?: typeof fetch,
-): Promise<{ app: Express }>;
+  calls?: RealtimeCallService,
+): Promise<{ app: Express; calls: RealtimeCallService }>;
 export function createApp(
   config: Config,
   storage: Store,
   fetcher?: typeof fetch,
-): Promise<{ app: Express; game: AgentService }>;
+  calls?: RealtimeCallService,
+): Promise<{ app: Express; game: AgentService; calls: RealtimeCallService }>;
 export async function createApp(
   config: Config,
   storage: Store | WorkspaceDirectory,
   fetcher: typeof fetch = fetch,
+  calls?: RealtimeCallService,
 ) {
   const app = express();
   const game =
@@ -42,6 +47,13 @@ export async function createApp(
   const feedback = new FeedbackRepository(
     storage instanceof Store ? storage.db : storage.cloud.client,
   );
+  const realtimeCalls =
+    calls ??
+    new RealtimeCallService(
+      config,
+      new VoiceLimitRepository(storage instanceof Store ? storage.db : storage.cloud.client),
+      fetcher,
+    );
 
   app.disable('x-powered-by');
   app.use(securityHeaders);
@@ -94,10 +106,10 @@ export async function createApp(
   app.use('/api', feedbackRoutes(feedback));
   app.use('/api', exerciseRoutes());
   app.use('/api', conversationRoutes());
-  app.use('/api', sessionRoutes(config, fetcher));
+  app.use('/api', sessionRoutes(config, fetcher, realtimeCalls));
   app.use('/api', (_req, _res, next) => {
     next(AppError.create('route_not_found'));
   });
   app.use(requestErrors(config));
-  return { app, game };
+  return { app, game, calls: realtimeCalls };
 }

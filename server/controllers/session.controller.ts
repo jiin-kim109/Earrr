@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { requestGame, reply, acknowledge } from '../request-context.js';
 import type { Config } from '../config/environment.js';
 import { diagnosticCodes } from '../errors/app-error.js';
+import type { RealtimeCallService } from '../services/realtime-call.service.js';
+import { realtimeClientIp } from '../middleware.js';
 
 const connectionSchema = z
   .object({
@@ -18,7 +20,7 @@ const diagnosticSchema = z
   })
   .strict();
 
-export function sessionRoutes(config: Config, fetcher: typeof fetch) {
+export function sessionRoutes(config: Config, fetcher: typeof fetch, calls: RealtimeCallService) {
   const router = Router();
 
   router.post('/realtime/connect', async (req, res) => {
@@ -28,14 +30,9 @@ export function sessionRoutes(config: Config, fetcher: typeof fetch) {
     res.on('close', () => {
       if (!res.writableEnded) controller.abort();
     });
-    const answer = await game.sessions.connect(
-      sessionId,
-      config,
-      await game.snapshot(),
-      sdp,
-      controller.signal,
-      fetcher,
-      req.ip ?? 'local',
+    const ip = realtimeClientIp(req, config);
+    const answer = await calls.connect(ip, controller.signal, async (signal) =>
+      game.sessions.connect(sessionId, config, await game.snapshot(), sdp, signal, fetcher, ip),
     );
     reply(res, { answer, sessionId });
   });

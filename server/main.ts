@@ -60,7 +60,7 @@ Log.configure({
     config.databaseUrl ?? '',
   ],
 });
-const { app } =
+const { app, calls } =
   storage instanceof Store ? await createApp(config, storage) : await createApp(config, storage);
 const http = createServer(app);
 const entrySettings = `<script id="earrr-entry-settings" type="application/json">${JSON.stringify({
@@ -122,7 +122,15 @@ http.on('error', async (error: NodeJS.ErrnoException) => {
   process.exitCode = 1;
 });
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.once(signal, () =>
+  process.once(signal, async () => {
+    try {
+      await calls.close();
+    } catch (error) {
+      console.error(
+        '[earrr] Voice shutdown failed:',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+    }
     http.close(async () => {
       let deadline: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([
@@ -137,6 +145,6 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       clearTimeout(deadline);
       await storage.close();
       process.exit(0);
-    }),
-  );
+    });
+  });
 }

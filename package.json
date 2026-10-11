@@ -41,6 +41,7 @@
     "react-dom": "^19.3.0",
     "react-resizable-panels": "^4.13.2",
     "vexflow": "5.0.0",
+    "ws": "8.22.0",
     "zod": "^4.6.2",
     "zustand": "5.0.15"
   },
@@ -56,6 +57,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/supertest": "^6.0.3",
+    "@types/ws": "8.18.2",
     "@vitejs/plugin-react": "^6.1.1",
     "prettier": "3.6.2",
     "supertest": "^7.1.4",

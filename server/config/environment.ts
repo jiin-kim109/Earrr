@@ -20,6 +20,7 @@ export interface Config {
   supabaseServiceKey?: string;
   learningSaveKey?: string;
   googleEnabled?: boolean;
+  azureAppService?: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
@@ -128,6 +129,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     deployment: env.AZURE_OPENAI_REALTIME_DEPLOYMENT?.trim() || 'gpt-realtime-2.1',
     transcriptionDeployment: env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT?.trim() || '',
     configured: Boolean(endpoint && apiKey),
+    ...(env.WEBSITE_SITE_NAME ? { azureAppService: true } : {}),
     ...(env.SUPABASE_URL
       ? {
           supabaseUrl: z.url().parse(env.SUPABASE_URL),

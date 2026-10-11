@@ -1,6 +1,21 @@
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
+import { isIP } from 'node:net';
 import type { Config } from './config/environment.js';
 import { AppError } from './errors/app-error.js';
+
+export function realtimeClientIp(req: Request, config: Pick<Config, 'azureAppService'>) {
+  const address = config.azureAppService ? req.get('x-client-ip') : req.socket.remoteAddress;
+  if (!address || !isIP(address)) throw AppError.create('client_ip_unavailable');
+  if (isIP(address) === 4) return address;
+  const normalized = new URL(`http://[${address}]`).hostname.slice(1, -1);
+  const mapped = /^::ffff:([a-f0-9]{1,4}):([a-f0-9]{1,4})$/.exec(normalized);
+  if (mapped) {
+    const high = parseInt(mapped[1]!, 16);
+    const low = parseInt(mapped[2]!, 16);
+    return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+  }
+  return normalized;
+}
 
 export const securityHeaders: RequestHandler = (_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

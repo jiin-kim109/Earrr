@@ -1091,15 +1091,24 @@ class Studio {
       return;
     }
     const turn = ++this.soloTurn;
+    const generation = this.generation;
+    const owner = scope();
+    const isCurrent = () =>
+      turn === this.soloTurn && generation === this.generation && scope() === owner;
     this.audio.stop();
+    const release = await this.acquireAction();
     try {
+      if (!isCurrent()) return;
       const result = await callTool('select_lesson', { skillId }, this.state.snapshot?.session?.id);
-      if (turn !== this.soloTurn) return;
+      if (!isCurrent()) return;
       this.applySnapshot(result.snapshot);
-      await this.enterSection({ focus: skillId });
     } catch (error) {
-      this.reportError(error);
+      if (isCurrent()) this.reportError(error);
+      return;
+    } finally {
+      release();
     }
+    if (isCurrent()) await this.enterSection({ focus: skillId });
   }
   async skipTeaching() {
     await this.action('start_practice');
@@ -1132,6 +1141,15 @@ class Studio {
       await this.action('teach_lesson', { restart: true, discardRoundId });
     else await this.enterSection({ mode: 'coach', tutorial: { discardRoundId } });
   }
+  private async acquireAction() {
+    const previous = this.soloOperations;
+    let release!: () => void;
+    this.soloOperations = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    return release;
+  }
   private async soloAction(name: ToolName, args: Record<string, unknown>, enterTraining = false) {
     const session = this.state.snapshot?.session;
     if (!session) return;
@@ -1142,12 +1160,7 @@ class Studio {
       generation === this.generation &&
       this.state.snapshot?.session?.id === session.id;
     this.audio.stop();
-    const previous = this.soloOperations;
-    let release!: () => void;
-    this.soloOperations = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await previous;
+    const release = await this.acquireAction();
     try {
       if (!isCurrent()) return;
       let result: ToolResult | null = await callTool(name, args, session.id);

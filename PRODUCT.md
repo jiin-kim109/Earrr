@@ -311,6 +311,10 @@ without excessive praise. The player is treated as a musician at every level.
     tutorial, assisted and historical replay updates keep their full context.
     Evaluate savings across cached input, uncached input and output tokens,
     including reasoning, without lowering the model or dropping learner history.
+    Let rapid UI choices settle before starting paid narration, while updating
+    the selected view immediately. Do not delay instrument replay, typed or
+    spoken input, or continuous coaching turns. Serialize navigation even before
+    voice connects so the server and visible lesson keep the same final choice.
 45. Resolve conversational navigation from exact visible lesson names. All active
     lessons are freely selectable, even after an unsuccessful round. Never
     require prerequisite tests, substitute an easier lesson, or claim the requested

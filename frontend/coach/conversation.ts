@@ -60,6 +60,7 @@ export class Conversation {
   private readonly events = new Set<string>();
   private actionCount = 0;
   private section = 0;
+  private cancelUiReply: (() => void) | null = null;
 
   constructor(
     private readonly connection: RealtimeConnection,
@@ -67,6 +68,7 @@ export class Conversation {
   ) {}
 
   reset() {
+    this.cancelUiReply?.();
     this.generation++;
     this.section++;
     this.turn++;
@@ -83,6 +85,7 @@ export class Conversation {
   }
 
   begin(providerInterrupted = false): number {
+    this.cancelUiReply?.();
     const oldTurn = this.turn;
     const speaking = [...this.responses.values()].some(
       (run) => run.request.turn === oldTurn && run.audio && !run.drained && !run.settled,
@@ -120,6 +123,7 @@ export class Conversation {
     this.request('auto');
   }
   async action(name: ToolName, args: Record<string, unknown> = {}) {
+    const replyAfter = performance.now() + 200;
     const previousQuestion = this.handlers.snapshot()?.current?.id;
     if (
       [
@@ -165,7 +169,24 @@ export class Conversation {
       if (turn === this.turn) {
         this.pending = result;
         silent = result.reply === 'none';
-        if (!silent) this.request('none', result);
+        if (!silent) {
+          // Let UI intent settle before spending a voice response, not before updating the view.
+          const delay = replyAfter - performance.now();
+          if (delay > 0) {
+            this.handlers.phase('thinking');
+            await new Promise<void>((resolve) => {
+              const finish = () => {
+                clearTimeout(timer);
+                if (this.cancelUiReply === finish) this.cancelUiReply = null;
+                resolve();
+              };
+              const timer = setTimeout(finish, delay);
+              this.cancelUiReply = finish;
+            });
+          }
+          if (turn === this.turn && generation === this.generation && section === this.section)
+            this.request('none', result);
+        }
       }
     } catch (error) {
       if (turn === this.turn && generation === this.generation && section === this.section)

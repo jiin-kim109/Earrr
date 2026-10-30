@@ -138,11 +138,89 @@ beforeEach(async () => {
   loop.start();
 });
 afterEach(async () => {
+  loop.reset();
+  vi.useRealTimers();
   await store.close();
   vi.restoreAllMocks();
 });
 
 describe('causal single-stream turns', () => {
+  it('updates navigation immediately but generates speech only for the final choice in a burst', async () => {
+    await tool('play_exercise');
+    await reply();
+    vi.useFakeTimers();
+    const generated = vi.spyOn(connection, 'respond').mockImplementation(() => {
+      done(created());
+    });
+    const actions: Promise<void>[] = [];
+    try {
+      for (const skillId of ['triads', 'modes', 'progressions']) {
+        actions.push(loop.action('select_lesson', { skillId }));
+        await vi.advanceTimersByTimeAsync(40);
+        expect(snapshot.course.selectedLesson).toBe(skillId);
+      }
+      expect(generated).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(250);
+      await Promise.all(actions);
+      expect(generated).toHaveBeenCalledOnce();
+      expect(generated.mock.calls[0]![0].tools).toBe('none');
+      expect(snapshot.course.selectedLesson).toBe('progressions');
+      expect(snapshot.totalAnswers).toBe(0);
+      expect(errors).toEqual([]);
+    } finally {
+      loop.reset();
+      await Promise.all(actions);
+    }
+  });
+
+  it.each(['text', 'speech', 'reset'] as const)(
+    'cancels a pending UI narration when %s takes ownership without leaving the action queue locked',
+    async (interruption) => {
+      await tool('play_exercise');
+      await reply();
+      vi.useFakeTimers();
+      const generated = vi.spyOn(connection, 'respond');
+      const selecting = loop.action('select_lesson', { skillId: 'triads' });
+      await vi.advanceTimersByTimeAsync(0);
+      if (interruption === 'text') loop.text('Please explain that sound.');
+      else if (interruption === 'speech') {
+        emit({ type: 'input_audio_buffer.speech_started', item_id: 'ui-barge-in' });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(generated).not.toHaveBeenCalled();
+        emit({ type: 'input_audio_buffer.committed', item_id: 'ui-barge-in' });
+      } else loop.reset();
+      await vi.advanceTimersByTimeAsync(1000);
+      await selecting;
+      if (interruption !== 'reset') {
+        expect(generated).toHaveBeenCalledOnce();
+        expect(generated.mock.calls[0]![0].tools).toBe('auto');
+      } else {
+        expect(generated).not.toHaveBeenCalled();
+        loop.start();
+        expect(generated).toHaveBeenCalledOnce();
+      }
+      expect(errors).toEqual([]);
+    },
+  );
+
+  it('does not add another wait when a slow UI request has already outlasted the quiet window', async () => {
+    await tool('play_exercise');
+    await reply();
+    vi.useFakeTimers();
+    const run = execute.getMockImplementation()!;
+    execute.mockImplementationOnce(async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return run(...args);
+    });
+    const generated = vi.spyOn(connection, 'respond');
+    const selecting = loop.action('select_lesson', { skillId: 'triads' });
+    await vi.advanceTimersByTimeAsync(500);
+    await selecting;
+    expect(generated).toHaveBeenCalledOnce();
+    expect(snapshot.course.selectedLesson).toBe('triads');
+    expect(errors).toEqual([]);
+  });
+
   it('accepts a provider cancellation before the VAD start event without treating the interruption as a failure', async () => {
     await tool('play_exercise');
     const id = created();
@@ -574,6 +652,7 @@ describe('causal single-stream turns', () => {
   it('plays a UI replay directly without asking the model to acknowledge the button', async () => {
     await tool('play_exercise');
     await reply();
+    vi.useFakeTimers();
     const count = responses().length;
     await loop.action('replay_exercise');
     expect(responses()).toHaveLength(count);

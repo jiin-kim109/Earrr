@@ -179,6 +179,43 @@ describe('automatic section activation', () => {
     expect(state.getState().snapshot!.session?.status).toBe('active');
   });
 
+  it('keeps the server and visible lesson on the final pre-connection selection when an earlier request is delayed', async () => {
+    vi.useFakeTimers();
+    const run = controls.calls.getMockImplementation()!;
+    controls.calls.mockImplementationOnce(async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return run(...args);
+    });
+    const first = studio.focus('triads');
+    await vi.advanceTimersByTimeAsync(0);
+    const last = studio.focus('modes');
+    await vi.advanceTimersByTimeAsync(250);
+    await Promise.all([first, last]);
+    expect(state.getState().snapshot?.course.selectedLesson).toBe('modes');
+    expect((await game.snapshot()).course.selectedLesson).toBe('modes');
+    expect(controls.connect).toHaveBeenCalledOnce();
+    expect(controls.speaking).toHaveBeenCalledOnce();
+    expect(state.getState().fatalError).toBeNull();
+  });
+
+  it('does not show an obsolete selection error after a newer pre-connection choice succeeds', async () => {
+    vi.useFakeTimers();
+    const { ApiError } = await import('../frontend/errors/api-error.js');
+    controls.calls.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      throw new ApiError('session_changed', 'The old session changed.', 409);
+    });
+    const first = studio.focus('triads');
+    await vi.advanceTimersByTimeAsync(0);
+    const last = studio.focus('modes');
+    await vi.advanceTimersByTimeAsync(250);
+    await Promise.all([first, last]);
+    expect(state.getState().snapshot?.course.selectedLesson).toBe('modes');
+    expect(state.getState().error).toBeNull();
+    expect(state.getState().fatalError).toBeNull();
+    expect(controls.connect).toHaveBeenCalledOnce();
+  });
+
   it('does not activate a hidden account screen or a busy identity transition', async () => {
     auth.setState({ view: 'login' });
     await studio.enterSection();

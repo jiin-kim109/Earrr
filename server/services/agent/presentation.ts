@@ -7,12 +7,14 @@ import type { ActionEffect, ReplyPurpose } from '../../types/action.types.js';
 import { toolArguments, toolNames } from '../../types/agent.types.js';
 import type {
   ActionOutcome,
+  AgentCourseContext,
   AgentToolContext,
   PresentationPart,
   Snapshot,
   ToolName,
   ToolResult,
 } from '../../types/agent.types.js';
+import type { CourseState } from '../../types/progress.types.js';
 
 import nunjucks from 'nunjucks';
 
@@ -53,8 +55,8 @@ export function agentInstructions(snapshot: Snapshot): string {
     current: snapshot.current,
     feedback: snapshot.feedback,
     teaching: snapshot.teaching,
-    course: snapshot.course,
-    lessonChoices: lessonChoices(snapshot),
+    course: agentCourse(snapshot.course),
+    lessonChoices: lessonChoices(snapshot, false),
     checkpoint: snapshot.checkpoint,
     lesson: {
       ...getSkill(snapshot.course.selectedLesson),
@@ -72,16 +74,49 @@ export function agentInstructions(snapshot: Snapshot): string {
   });
 }
 
-function lessonChoices(snapshot: Snapshot): AgentToolContext['lessonChoices'] {
+function lessonChoices(
+  snapshot: Snapshot,
+  includeProgress = true,
+): NonNullable<AgentToolContext['lessonChoices']> {
   return skills.map((skill) => ({
     id: skill.id,
     name: skill.shortName,
-    completed:
-      snapshot.course.lessons.find((lesson) => lesson.skillId === skill.id)?.status === 'completed',
+    ...(includeProgress
+      ? {
+          completed:
+            snapshot.course.lessons.find((lesson) => lesson.skillId === skill.id)?.status ===
+            'completed',
+        }
+      : {}),
   }));
 }
 
-export function publicToolResult(result: ResultData): AgentToolContext {
+function agentCourse(course: CourseState, detailed = false): AgentCourseContext {
+  const { lessons, round, ...summary } = course;
+  let previous = round.previous;
+  if (previous && !detailed) {
+    const { answers: _answers, ...result } = previous;
+    previous = result;
+  }
+  return {
+    ...summary,
+    currentLesson: lessons.find((lesson) => lesson.skillId === course.selectedLesson) ?? null,
+    completedLessonIds: lessons
+      .filter((lesson) => lesson.status === 'completed')
+      .map((lesson) => lesson.skillId),
+    ...(detailed ? { lessons } : {}),
+    round: {
+      id: round.id,
+      number: round.number,
+      correct: round.correct,
+      answered: round.answers.length,
+      previous,
+      ...(detailed ? { answers: round.answers } : {}),
+    },
+  };
+}
+
+export function publicToolResult(result: ResultData, detailed = false): AgentToolContext {
   const { snapshot, audio, grade } = result;
   let current: AgentToolContext['current'] = null;
   if (snapshot.current) {
@@ -130,8 +165,8 @@ export function publicToolResult(result: ResultData): AgentToolContext {
     session: snapshot.session,
     current,
     teaching: snapshot.teaching,
-    course: snapshot.course,
-    lessonChoices: lessonChoices(snapshot),
+    course: agentCourse(snapshot.course, detailed),
+    ...(detailed ? { lessonChoices: lessonChoices(snapshot) } : {}),
     totals: { answers: snapshot.totalAnswers },
   };
 }
@@ -165,7 +200,11 @@ export function presentationContext(result: ResultData): { parts: PresentationPa
   return { parts };
 }
 
-export function presentResult(outcome: ActionOutcome, snapshot: Snapshot): ToolResult {
+export function presentResult(
+  outcome: ActionOutcome,
+  snapshot: Snapshot,
+  tool?: ToolName,
+): ToolResult {
   const reply =
     outcome.reply ??
     (outcome.grade
@@ -176,7 +215,7 @@ export function presentResult(outcome: ActionOutcome, snapshot: Snapshot): ToolR
           ? 'none'
           : 'message');
   const data = { ...outcome, reply, snapshot };
-  const context = publicToolResult(data);
+  const context = publicToolResult(data, tool === 'inspect_progress');
   return {
     ...data,
     agent: {

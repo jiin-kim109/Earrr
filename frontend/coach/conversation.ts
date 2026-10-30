@@ -120,6 +120,7 @@ export class Conversation {
     this.request('auto');
   }
   async action(name: ToolName, args: Record<string, unknown> = {}) {
+    const previousQuestion = this.handlers.snapshot()?.current?.id;
     if (
       [
         'select_lesson',
@@ -140,7 +141,27 @@ export class Conversation {
       const result = await this.handlers.execute(name, args, crypto.randomUUID());
       if (generation !== this.generation || section !== this.section) return;
       this.handlers.result(result);
-      this.connection.message(result.agent.update, 'system');
+      const currentReplay =
+        name === 'replay_exercise' &&
+        previousQuestion &&
+        result.reply === 'none' &&
+        result.playbackExerciseId === previousQuestion &&
+        result.snapshot.current?.id === previousQuestion &&
+        !result.teaching &&
+        !result.review &&
+        !args.arpeggiate;
+      this.connection.message(
+        currentReplay
+          ? JSON.stringify({
+              event: 'exercise_replayed',
+              exerciseId: result.playbackExerciseId,
+              replayCount: result.snapshot.current!.replayCount,
+              hintCount: result.snapshot.current!.hintCount,
+              reply: 'none',
+            })
+          : result.agent.update,
+        'system',
+      );
       if (turn === this.turn) {
         this.pending = result;
         silent = result.reply === 'none';

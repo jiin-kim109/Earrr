@@ -5,7 +5,11 @@ import { Store } from '../server/db/database.js';
 import { skills } from '../server/services/exercise/catalog.js';
 import type { SkillId } from '../shared/types/course.js';
 import type { ToolName } from '../server/types/agent.types.js';
-import { presentationContext, publicToolResult } from '../server/services/agent/presentation.js';
+import {
+  agentInstructions,
+  presentationContext,
+  publicToolResult,
+} from '../server/services/agent/presentation.js';
 
 let store: Store;
 let game: Game;
@@ -32,6 +36,66 @@ async function start(id: SkillId) {
 }
 
 describe('one presentation contract across the whole course', () => {
+  it('keeps routine context small without dropping question, grading or round facts from the model or UI', async () => {
+    const first = await start('intervals-foundation');
+    const exercise = (await store.exercises.get(first.snapshot.current!.id))!;
+    const result = await call('submit_answer', {
+      exerciseId: exercise.id,
+      answer: exercise.expected,
+    });
+    const before = structuredClone(result.snapshot);
+    const context = publicToolResult(result);
+    expect(context).not.toHaveProperty('lessonChoices');
+    expect(context.course).not.toHaveProperty('lessons');
+    expect(context.course.round).not.toHaveProperty('answers');
+    expect(context.course).toMatchObject({
+      selectedLesson: before.course.selectedLesson,
+      completedLessons: before.course.completedLessons,
+      nextLesson: before.course.nextLesson,
+      currentLesson: before.course.lessons.find(
+        (lesson) => lesson.skillId === before.course.selectedLesson,
+      ),
+      completedLessonIds: before.course.lessons
+        .filter((lesson) => lesson.status === 'completed')
+        .map((lesson) => lesson.skillId),
+      round: {
+        id: before.course.round.id,
+        correct: before.course.round.correct,
+        answered: before.course.round.answers.length,
+      },
+    });
+    expect(context.current?.id).toBe(before.current?.id);
+    expect(context.current?.required).toEqual(before.current?.required);
+    expect(context.grade?.played).toEqual(before.feedback?.example);
+    expect(result.snapshot).toEqual(before);
+    expect(result.snapshot.course.lessons).toHaveLength(skills.length);
+  });
+
+  it('retains the complete catalog at connection and restores detailed progress when asked', async () => {
+    const first = await start('triads');
+    const prompt = agentInstructions(first.snapshot);
+    const initial = JSON.parse(prompt.split('\n').find((line) => line.startsWith('{"session":'))!);
+    expect(
+      initial.lessonChoices.map((lesson: { id: string; name: string }) => ({
+        id: lesson.id,
+        name: lesson.name,
+      })),
+    ).toEqual(skills.map((lesson) => ({ id: lesson.id, name: lesson.shortName })));
+    expect(initial.lessonChoices.every((lesson: object) => !('completed' in lesson))).toBe(true);
+    expect(initial.course).not.toHaveProperty('lessons');
+    const requested = await call('inspect_progress');
+    expect(requested.agent.context).toEqual(publicToolResult(requested, true));
+    expect(requested.agent.context.course.lessons).toEqual(requested.snapshot.course.lessons);
+    expect(requested.agent.context.course.round.answers).toEqual(
+      requested.snapshot.course.round.answers,
+    );
+    expect(requested.agent.context.lessonChoices).toHaveLength(skills.length);
+    const paused = await call('pause_session');
+    expect(paused.agent.context.session?.status).toBe('paused');
+    expect(paused.agent.context).not.toHaveProperty('lessonChoices');
+    expect(paused.agent.context.course).not.toHaveProperty('lessons');
+  });
+
   it.each(skills.map((skill) => skill.id))(
     '%s introduces the task once, scores briefly, and replays without a follow-up',
     async (id) => {

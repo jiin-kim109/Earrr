@@ -168,6 +168,16 @@ export interface Presentation {
   instructions?: string;
 }
 
+export interface AgentCourseContext extends Omit<CourseState, 'lessons' | 'round'> {
+  currentLesson: CourseState['lessons'][number] | null;
+  completedLessonIds: SkillId[];
+  lessons?: CourseState['lessons'];
+  round: Omit<CourseState['round'], 'answers'> & {
+    answered: number;
+    answers?: CourseState['round']['answers'];
+  };
+}
+
 export interface AgentToolContext {
   ok: boolean;
   reply: ReplyPurpose;
@@ -185,11 +195,11 @@ export interface AgentToolContext {
   session: Session | null;
   current: (Omit<PublicExercise, 'prompt'> & { prompt?: string }) | null;
   teaching: TeachingView | null;
-  course: CourseState;
-  lessonChoices: Array<{
+  course: AgentCourseContext;
+  lessonChoices?: Array<{
     id: SkillId;
     name: string;
-    completed: boolean;
+    completed?: boolean;
   }>;
   totals: { answers: number };
 }

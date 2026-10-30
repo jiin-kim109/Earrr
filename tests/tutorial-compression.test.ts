@@ -116,9 +116,8 @@ describe('concise tutorials with stable saved positions', () => {
       const game = await AgentService.create(store, true, 'test');
       const state = await game.snapshot();
       const prompt = agentInstructions(state);
-      expect(prompt).toContain(
-        '"id":"intervals-harmonic","name":"Intervals together","completed":false',
-      );
+      expect(prompt).toContain('"id":"intervals-harmonic","name":"Intervals together"');
+      expect(prompt).toContain('"completedLessonIds":[]');
       expect(prompt).toContain('All listed lessons are available from the start');
       expect(prompt).not.toContain('"prerequisite"');
       const selected = await game.execute({

@@ -579,4 +579,112 @@ describe('causal single-stream turns', () => {
     expect(responses()).toHaveLength(count);
     expect(after).toHaveBeenCalledTimes(2);
   });
+
+  it('reports repeated current-question playback with compact facts instead of appending the full state', async () => {
+    await tool('play_exercise');
+    await reply();
+    const before = sent.length;
+    const count = responses().length;
+    const exerciseId = snapshot.current!.id;
+    for (let index = 0; index < 3; index++) await loop.action('replay_exercise');
+    const updates = sent
+      .slice(before)
+      .filter((event) => event.type === 'conversation.item.create')
+      .map((event) => event.item as { role: string; content: Array<{ text: string }> })
+      .filter((item) => item.role === 'system');
+    expect(updates).toHaveLength(3);
+    for (const [index, item] of updates.entries()) {
+      expect(item.content[0]!.text.length).toBeLessThan(250);
+      expect(JSON.parse(item.content[0]!.text)).toEqual({
+        event: 'exercise_replayed',
+        exerciseId,
+        replayCount: index + 1,
+        hintCount: 0,
+        reply: 'none',
+      });
+    }
+    expect(snapshot.current?.id).toBe(exerciseId);
+    expect(snapshot.totalAnswers).toBe(0);
+    expect(responses()).toHaveLength(count);
+    expect(after).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps full review and previous-example context instead of treating them as current-question replay', async () => {
+    await tool('play_exercise');
+    await reply();
+    const exercise = (await store.exercises.get(snapshot.current!.id))!;
+    loop.text('My answer.');
+    await tool('submit_answer', { exerciseId: exercise.id, answer: exercise.expected });
+    await reply('Correct. Next.');
+    const currentId = snapshot.current!.id;
+    const update = vi.spyOn(connection, 'message');
+    await loop.action('replay_exercise', { target: 'previous' });
+    const previous = await execute.mock.results.at(-1)!.value;
+    expect(update).toHaveBeenLastCalledWith(previous.agent.update, 'system');
+    await loop.action('replay_exercise', { exerciseId: exercise.id });
+    const reviewed = await execute.mock.results.at(-1)!.value;
+    expect(reviewed.agent.context.review?.exerciseId).toBe(exercise.id);
+    expect(update).toHaveBeenLastCalledWith(reviewed.agent.update, 'system');
+    expect(snapshot.current?.id).toBe(currentId);
+    expect(snapshot.totalAnswers).toBe(1);
+  });
+
+  it('does not compact tutorial replays that change the active presentation', async () => {
+    await tool('play_exercise');
+    await reply();
+    await loop.action('select_lesson', { skillId: 'triads' });
+    await reply('Compare major and minor.');
+    await loop.action('teach_lesson', { stepId: 'major-0' });
+    await reply('Hear C major.');
+    const update = vi.spyOn(connection, 'message');
+    const before = snapshot.teaching!.presentationId;
+    await loop.action('replay_exercise');
+    const replay = await execute.mock.results.at(-1)!.value;
+    expect(snapshot.teaching!.presentationId).not.toBe(before);
+    expect(update).toHaveBeenLastCalledWith(replay.agent.update, 'system');
+    expect(snapshot.totalAnswers).toBe(0);
+  });
+
+  it('keeps assisted-listening context when replaying a chord as separate notes', async () => {
+    await tool('play_exercise');
+    await reply();
+    await loop.action('select_lesson', { skillId: 'triads' });
+    await reply('Compare major and minor.');
+    await loop.action('start_practice');
+    await reply('Identify this chord.');
+    const update = vi.spyOn(connection, 'message');
+    const exerciseId = snapshot.current!.id;
+    await loop.action('replay_exercise', { arpeggiate: true });
+    const replay: ToolResult = await execute.mock.results.at(-1)!.value;
+    expect(update).toHaveBeenLastCalledWith(replay.agent.update, 'system');
+    expect(replay.agent.context.current?.hintCount).toBe(1);
+    expect(new Set(replay.audio!.events.map((note) => note.at)).size).toBe(3);
+    expect(snapshot.current?.id).toBe(exerciseId);
+    expect(snapshot.totalAnswers).toBe(0);
+  });
+
+  it('sends the new question state if an in-flight grade advanced before a UI replay reached the server', async () => {
+    await tool('play_exercise');
+    await reply();
+    const exercise = (await store.exercises.get(snapshot.current!.id))!;
+    execute.mockImplementationOnce(async (name, args, callId) => {
+      await game.execute(
+        {
+          callId: crypto.randomUUID(),
+          sessionId: snapshot.session!.id,
+          name: 'submit_answer',
+          arguments: { exerciseId: exercise.id, answer: exercise.expected },
+        },
+        true,
+      );
+      return game.execute({ callId, sessionId: snapshot.session!.id, name, arguments: args }, true);
+    });
+    const update = vi.spyOn(connection, 'message');
+    await loop.action('replay_exercise');
+    const replay = await execute.mock.results.at(-1)!.value;
+    expect(snapshot.current?.id).not.toBe(exercise.id);
+    expect(replay.agent.context.current?.id).toBe(snapshot.current?.id);
+    expect(update).toHaveBeenLastCalledWith(replay.agent.update, 'system');
+    expect(snapshot.totalAnswers).toBe(1);
+  });
 });

@@ -216,9 +216,10 @@ export class AgentService {
                 : {}),
             },
             snapshot,
+            request.name,
           );
         }
-        return presentResult(cached.payload, snapshot);
+        return presentResult(cached.payload, snapshot, request.name);
       }
 
       const effect = await this.prepareNext(await bound.run(), request.name, agent);
@@ -234,7 +235,7 @@ export class AgentService {
       };
       await this.store.agent.saveCall(request.callId, hash, outcome);
       await this.checkpoint(request, bound.arguments, outcome);
-      return presentResult(outcome, await this.snapshot());
+      return presentResult(outcome, await this.snapshot(), request.name);
     });
   }
 

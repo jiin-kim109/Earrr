@@ -303,6 +303,14 @@ without excessive praise. The player is treated as a musician at every level.
     conversation-token budget. Keep recent literal messages and authoritative
     musical state. Separate summary calls are not needed for cost control;
     optional summarizer credentials remain private server configuration.
+    Keep full UI snapshots separate from model context. Routine model updates
+    contain the current lesson, passed lesson IDs and round totals; detailed
+    per-lesson progress remains available on request. Supply the stable lesson
+    catalog at connection rather than repeating it with every answer.
+    Current-question UI replays send only completed-playback IDs and counters;
+    tutorial, assisted and historical replay updates keep their full context.
+    Evaluate savings across cached input, uncached input and output tokens,
+    including reasoning, without lowering the model or dropping learner history.
 45. Resolve conversational navigation from exact visible lesson names. All active
     lessons are freely selectable, even after an unsuccessful round. Never
     require prerequisite tests, substitute an easier lesson, or claim the requested

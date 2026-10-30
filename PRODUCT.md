@@ -80,7 +80,8 @@ without excessive praise. The player is treated as a musician at every level.
     chord/bass work. Keep Skip in the lower action row as a borderless
     icon/text button with a quiet hover fill, not beside the Tutorial label.
     Finish with a readiness invitation and wait. Only an explicit start_practice
-    tool call after agreement or Skip begins exercises. Chapter 00, Pitch direction,
+    tool call after agreement or Skip begins exercises. Pitch direction, the first
+    lesson in Intervals,
     is the exception: begin practice directly with one short explanation of pitch.
     It has no tutorial or tutorial-return button, and uses rising/falling notes only.
 11. Use one realtime conversation for input, tools, native streamed voice, and
@@ -237,7 +238,7 @@ without excessive praise. The player is treated as a musician at every level.
     feedback, without filler promises, flattery or repeated readiness invitations.
     Never pronounce the app name, which belongs to visual branding.
 35. Include a one-time Welcome before new coached learning, without a sidebar entry.
-    Chapter 00 belongs to Pitch direction. The greeting's visible title is
+    Pitch direction is the first lesson in Intervals. The greeting's visible title is
     Welcome. Briefly introduce the AI coach and the range from basic pitch/intervals
     to advanced chords/harmony, then ask to start ear training and wait for agreement.
     Do not ask to start pitch direction or recite the app name. Welcome is
@@ -330,8 +331,8 @@ without excessive praise. The player is treated as a musician at every level.
     Inversion questions supply the chord quality so the learner judges only the
     bass position. Tonal anchors and Roots & quality are retired from active lessons;
     their historical answers remain saved.
-48. Use 27 short lessons across nine chapters, numbered 00 through 08: pitch
-    direction; intervals; chord colors; scales/modes; seventh chords; inversions;
+48. Use 27 short lessons across eight chapters, numbered 01 through 08:
+    intervals (starting with pitch direction); chord colors; scales/modes; seventh chords; inversions;
     added tones/extensions; chord progressions; altered dominants.
     Inversions includes both triad and seventh bass positions. Introduce major/minor,
     then diminished/augmented, then sus4 (five qualities total). Minor scales cover

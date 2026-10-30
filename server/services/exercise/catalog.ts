@@ -10,15 +10,9 @@ export const welcome = {
 
 export const chapters = [
   {
-    number: 0,
-    name: 'Pitch direction',
-    subtitle: 'Hear whether the sound rises or falls',
-    label: 'Getting started',
-  },
-  {
     number: 1,
     name: 'Intervals',
-    subtitle: 'Essential distances, apart and together',
+    subtitle: 'Pitch direction and essential distances',
     label: 'Foundations',
   },
   {
@@ -90,7 +84,7 @@ export const skills: Skill[] = [
   lesson(
     'pitch-direction',
     'Pitch direction',
-    0,
+    1,
     1,
     'Find the motion between two notes.',
     'Hear upward or downward motion across changing registers.',

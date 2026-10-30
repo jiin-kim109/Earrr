@@ -53,7 +53,6 @@ describe('manageable learning progression', () => {
   it('has small answer sets and teaches functions before guided progressions', () => {
     expect(skills).toHaveLength(27);
     expect(chapters.map((chapter) => chapter.name)).toEqual([
-      'Pitch direction',
       'Intervals',
       'Chord colors',
       'Scales & modes',
@@ -64,6 +63,7 @@ describe('manageable learning progression', () => {
       'Altered dominants',
     ]);
     expect(skills.filter((skill) => skill.chapter === 1).map((skill) => skill.id)).toEqual([
+      'pitch-direction',
       'intervals-foundation',
       'intervals-harmonic',
     ]);

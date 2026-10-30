@@ -2310,12 +2310,6 @@ test('gives the selected lesson breathing room inside its gray group', async ({ 
   await page.goto('/');
   await enter(page);
   await expect(player(page)).toHaveAttribute('data-phase', 'listening');
-  await page
-    .getByRole('navigation', { name: 'Chapters and lessons' })
-    .getByRole('button', { name: /Intervals/, expanded: false })
-    .click();
-  await page.getByRole('button', { name: /^Intervals up & down(?:, completed)?$/ }).click();
-  await expect(page.getByTestId('lesson-toolbar')).toHaveText('Intervals up & down');
   const selected = page
     .getByRole('navigation', { name: 'Chapters and lessons' })
     .locator('[aria-current="step"]');
@@ -2941,7 +2935,7 @@ for (const viewport of [
   { width: 1440, height: 900 },
   { width: 390, height: 844 },
 ]) {
-  test(`keeps Welcome off the sidebar and hands off directly to chapter 00 practice at ${viewport.width}`, async ({
+  test(`keeps Welcome off the sidebar and starts pitch practice inside Intervals at ${viewport.width}`, async ({
     page,
     request,
   }) => {
@@ -3007,11 +3001,19 @@ for (const viewport of [
       .getByRole('navigation', { name: 'Chapters and lessons' })
       .getByRole('button', { name: 'Welcome', exact: true });
     await expect(welcome).toHaveCount(0);
+    await page.getByRole('button', { name: /Intervals/, expanded: false }).click();
     await expect(
       page
         .getByRole('navigation', { name: 'Chapters and lessons' })
         .getByRole('button', { name: /^Pitch direction/ }),
-    ).toContainText('00');
+    ).toContainText('1.1');
+    const intervalLessons = page
+      .getByRole('navigation', { name: 'Chapters and lessons' })
+      .locator('ul')
+      .first();
+    await expect(intervalLessons.getByRole('button')).toHaveCount(3);
+    await expect(intervalLessons.getByRole('button').nth(1)).toContainText('1.2');
+    await expect(intervalLessons.getByRole('button').nth(2)).toContainText('1.3');
     if (viewport.width < 1024) await page.keyboard.press('Escape');
     await page.screenshot({
       path: `test-results\\brief-welcome-${viewport.width}.png`,
@@ -3241,7 +3243,6 @@ for (const viewport of [
     await expect(page.getByTestId('lesson-toolbar')).toContainText('Pitch direction');
     if (viewport.width < 1024) {
       await page.getByRole('button', { name: 'Open lessons', exact: true }).click();
-      await page.getByRole('button', { name: /Intervals/, expanded: false }).click();
     }
     await page.getByRole('button', { name: /^Intervals up & down(?:, completed)?$/ }).click();
     await expect(page.getByTestId('lesson-toolbar')).toContainText('Intervals up & down');

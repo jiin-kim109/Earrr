@@ -565,6 +565,7 @@ test('rapid progression replays keep one audio plan at the same loudness and a l
     ),
   );
   expect(maxSimultaneous).toBeLessThanOrEqual(plannedVoices + 1);
+  await page.getByRole('button', { name: /Intervals/, expanded: false }).click();
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
     release = resolve;

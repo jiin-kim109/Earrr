@@ -54,38 +54,6 @@ export function CourseOutline({
                 snapshot.course.lessons.find((item) => item.skillId === skill.id)?.status ===
                 'completed',
             );
-            if (chapter.number === 0) {
-              const skill = chapterSkills[0]!;
-              const active = !welcomeSelected && skill.id === selected?.id;
-              return (
-                <Button
-                  key={chapter.number}
-                  variant="ghost"
-                  className={cn(
-                    'h-auto min-w-0 w-full justify-start gap-2 rounded-md px-2 py-3 text-left text-sm font-normal',
-                    active &&
-                      'bg-foreground font-medium text-background hover:bg-foreground/95 hover:text-background',
-                  )}
-                  disabled={busy}
-                  aria-current={active ? 'step' : undefined}
-                  aria-label={`${skill.shortName}${complete ? ', completed' : ''}`}
-                  onClick={() => {
-                    void studio.focus(skill.id);
-                    onSelect?.();
-                  }}
-                >
-                  <span className="w-6 shrink-0 text-xs tabular-nums">00</span>
-                  <span className="min-w-0 flex-1">{chapter.name}</span>
-                  <span
-                    data-testid="lesson-status"
-                    data-status={complete ? 'completed' : 'not_started'}
-                    className="flex size-4 shrink-0 items-center justify-center"
-                  >
-                    {complete && <Check className="size-4" aria-label="Chapter complete" />}
-                  </span>
-                </Button>
-              );
-            }
             return (
               <Collapsible
                 key={chapter.number}

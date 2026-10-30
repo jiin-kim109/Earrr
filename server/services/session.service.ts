@@ -4,9 +4,9 @@ import type { Store } from '../db/database.js';
 import { AppError } from '../errors/app-error.js';
 import type { ActionEffect } from '../types/action.types.js';
 import type { Session, LessonPosition } from '../types/session.types.js';
-import { newTeachingProgress } from './exercise/exercise.service.js';
+import { newTeachingProgress, newWelcomeProgress } from './exercise/exercise.service.js';
 import { normalizeTeachingProgress } from './exercise/teaching-progress.js';
-import { getSkill, skills } from './exercise/catalog.js';
+import { getSkill, skills, hasTutorial } from './exercise/catalog.js';
 import { z } from 'zod';
 import type { Snapshot } from '../types/agent.types.js';
 import { agentInstructions, agentTools } from './agent/presentation.js';
@@ -64,7 +64,7 @@ export class SessionService {
       if (options.mode && options.mode !== existing.mode) {
         throw AppError.create('session_mode_conflict');
       }
-      if (options.teach) {
+      if (options.teach && hasTutorial(await this.store.progress.selectedLesson())) {
         await this.store.sessions.save({
           ...existing,
           phase: 'teaching',
@@ -83,7 +83,7 @@ export class SessionService {
 
     const mode = options.mode ?? 'coach';
     const position = await this.restorePosition(focus, mode);
-    if (options.teach) {
+    if (options.teach && hasTutorial(focus)) {
       position.phase = 'teaching';
       position.teaching = newTeachingProgress(focus);
     }
@@ -117,7 +117,7 @@ export class SessionService {
       ...session,
       status: 'active',
       phase: 'teaching',
-      teaching: { ...newTeachingProgress(lessonId, 0, null, false), section: 'welcome' },
+      teaching: newWelcomeProgress(lessonId),
     };
     await this.store.sessions.save(welcomed);
     return welcomed;
@@ -216,7 +216,7 @@ export class SessionService {
   private async restorePosition(skillId: SkillId, mode: Session['mode']): Promise<LessonPosition> {
     const saved = await this.store.sessions.lessonPosition(skillId, mode);
     if (saved) {
-      if (saved.phase === 'teaching') {
+      if (saved.phase === 'teaching' && hasTutorial(skillId)) {
         const teaching = saved.teaching ? normalizeTeachingProgress(saved.teaching) : null;
         if (!teaching || teaching.lessonId !== skillId)
           throw new Error('The saved tutorial position does not match its lesson.');
@@ -235,9 +235,16 @@ export class SessionService {
           },
         };
       }
-      return { ...saved, playedTutorialSteps: saved.playedTutorialSteps ?? [] };
+      return {
+        ...saved,
+        ...(!hasTutorial(skillId) ? { phase: 'practice' as const, teaching: null } : {}),
+        playedTutorialSteps: saved.playedTutorialSteps ?? [],
+      };
     }
-    const teaching = mode === 'coach' && !(await this.store.progress.introductionSeen(skillId));
+    const teaching =
+      hasTutorial(skillId) &&
+      mode === 'coach' &&
+      !(await this.store.progress.introductionSeen(skillId));
     return {
       phase: teaching ? 'teaching' : 'practice',
       teaching: teaching ? newTeachingProgress(skillId) : null,
@@ -252,9 +259,16 @@ export class SessionService {
       let changed = false;
       const active = await this.store.sessions.active();
       if (active?.teaching) {
-        const teaching = normalizeTeachingProgress(active.teaching);
+        const teaching =
+          active.teaching.section !== 'welcome' && !hasTutorial(active.teaching.lessonId)
+            ? null
+            : normalizeTeachingProgress(active.teaching);
         if (JSON.stringify(teaching) !== JSON.stringify(active.teaching)) {
-          await this.store.sessions.save({ ...active, teaching });
+          await this.store.sessions.save({
+            ...active,
+            ...(teaching ? {} : { phase: 'practice' as const }),
+            teaching,
+          });
           changed = true;
         }
       }
@@ -262,10 +276,13 @@ export class SessionService {
         for (const mode of ['coach', 'solo'] as const) {
           const position = await this.store.sessions.lessonPosition(lesson.id, mode);
           if (!position?.teaching) continue;
-          const teaching = normalizeTeachingProgress(position.teaching);
+          const teaching = !hasTutorial(lesson.id)
+            ? null
+            : normalizeTeachingProgress(position.teaching);
           if (JSON.stringify(teaching) !== JSON.stringify(position.teaching)) {
             await this.store.sessions.saveLessonPosition(lesson.id, mode, {
               ...position,
+              ...(teaching ? {} : { phase: 'practice' as const }),
               teaching,
             });
             changed = true;
@@ -331,7 +348,7 @@ export class SessionService {
                   ? { transcription: { model: config.transcriptionDeployment, language: 'en' } }
                   : {}),
               },
-              output: { voice: snapshot.settings.voice, speed: 1.2 },
+              output: { voice: snapshot.settings.voice, speed: snapshot.settings.voiceSpeed },
             },
           },
         }),

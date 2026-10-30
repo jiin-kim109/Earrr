@@ -87,7 +87,7 @@ export class RealtimeCallService {
         const now = this.now();
         state.usage = state.usage.filter((entry) => entry.at > now - minute);
         if (state.blockedUntil > now) throw AppError.create('voice_usage_limited');
-        if (state.lease && state.lease.until > now)
+        if (state.lease && state.lease.id !== leaseId && state.lease.until > now)
           throw AppError.create('voice_connection_in_use');
         const previous = state.lease?.callId ?? null;
         state.lease = { id: leaseId, until: now + 90_000, callId: previous };

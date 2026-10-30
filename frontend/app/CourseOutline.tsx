@@ -47,31 +47,6 @@ export function CourseOutline({
         className="scrollbar-thin scrollbar-thumb-muted-foreground/60 scrollbar-track-transparent hover:scrollbar-thumb-muted-foreground min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
       >
         <nav aria-label="Chapters and lessons" className="min-w-0 space-y-1">
-          <Button
-            variant="ghost"
-            className={cn(
-              'mb-1 h-auto min-w-0 w-full justify-start gap-2 rounded-md px-2 py-3 text-left text-[13px] font-normal',
-              welcomeSelected &&
-                'bg-foreground font-medium text-background hover:bg-foreground/95 hover:text-background',
-            )}
-            disabled={busy}
-            aria-current={welcomeSelected ? 'step' : undefined}
-            aria-label={curriculum.welcome.name}
-            onClick={() => {
-              void studio.welcome();
-              onSelect?.();
-            }}
-          >
-            <span
-              className={cn(
-                'w-6 shrink-0 text-xs tabular-nums',
-                welcomeSelected ? 'text-background/70' : 'text-muted-foreground',
-              )}
-            >
-              {String(curriculum.welcome.number).padStart(2, '0')}
-            </span>
-            <span>{curriculum.welcome.name}</span>
-          </Button>
           {chapters.map((chapter) => {
             const chapterSkills = skills.filter((skill) => skill.chapter === chapter.number);
             const complete = chapterSkills.every(
@@ -79,6 +54,38 @@ export function CourseOutline({
                 snapshot.course.lessons.find((item) => item.skillId === skill.id)?.status ===
                 'completed',
             );
+            if (chapter.number === 0) {
+              const skill = chapterSkills[0]!;
+              const active = !welcomeSelected && skill.id === selected?.id;
+              return (
+                <Button
+                  key={chapter.number}
+                  variant="ghost"
+                  className={cn(
+                    'h-auto min-w-0 w-full justify-start gap-2 rounded-md px-2 py-3 text-left text-sm font-normal',
+                    active &&
+                      'bg-foreground font-medium text-background hover:bg-foreground/95 hover:text-background',
+                  )}
+                  disabled={busy}
+                  aria-current={active ? 'step' : undefined}
+                  aria-label={`${skill.shortName}${complete ? ', completed' : ''}`}
+                  onClick={() => {
+                    void studio.focus(skill.id);
+                    onSelect?.();
+                  }}
+                >
+                  <span className="w-6 shrink-0 text-xs tabular-nums">00</span>
+                  <span className="min-w-0 flex-1">{chapter.name}</span>
+                  <span
+                    data-testid="lesson-status"
+                    data-status={complete ? 'completed' : 'not_started'}
+                    className="flex size-4 shrink-0 items-center justify-center"
+                  >
+                    {complete && <Check className="size-4" aria-label="Chapter complete" />}
+                  </span>
+                </Button>
+              );
+            }
             return (
               <Collapsible
                 key={chapter.number}

@@ -55,6 +55,7 @@ export class Conversation {
   private readonly responses = new Map<string, ResponseRun>();
   private readonly calls = new Set<string>();
   private readonly voiceTurns = new Map<string, number>();
+  private readonly voiceSections = new Map<string, number>();
   private readonly commits = new Set<string>();
   private readonly events = new Set<string>();
   private actionCount = 0;
@@ -75,6 +76,7 @@ export class Conversation {
     this.responses.clear();
     this.calls.clear();
     this.voiceTurns.clear();
+    this.voiceSections.clear();
     this.commits.clear();
     this.events.clear();
     this.handlers.stopMusic();
@@ -85,12 +87,14 @@ export class Conversation {
     const speaking = [...this.responses.values()].some(
       (run) => run.request.turn === oldTurn && run.audio && !run.drained && !run.settled,
     );
-    if (!providerInterrupted && this.connection.connected && (this.active || speaking))
-      this.connection.cancel(this.active !== null);
+    const generating = this.active?.request.turn === oldTurn;
+    if (!providerInterrupted && this.connection.connected && (generating || speaking))
+      this.connection.cancel(generating);
     for (const response of this.responses.values()) {
-      if (response.request.turn === oldTurn && !response.settled && response.text) {
+      if (response.request.turn === oldTurn && !response.settled) {
         response.settled = true;
-        this.handlers.message('assistant', response.text, `assistant:${response.id}`, true, true);
+        if (response.text)
+          this.handlers.message('assistant', response.text, `assistant:${response.id}`, true, true);
       }
     }
     this.turn++;
@@ -116,7 +120,15 @@ export class Conversation {
     this.request('auto');
   }
   async action(name: ToolName, args: Record<string, unknown> = {}) {
-    if (['select_lesson', 'show_welcome', 'teach_lesson', 'start_practice'].includes(name))
+    if (
+      [
+        'select_lesson',
+        'adjust_session',
+        'show_welcome',
+        'teach_lesson',
+        'start_practice',
+      ].includes(name)
+    )
       this.section++;
     const section = this.section;
     const turn = this.begin();
@@ -135,7 +147,8 @@ export class Conversation {
         if (!silent) this.request('none', result);
       }
     } catch (error) {
-      this.handlers.error(error);
+      if (turn === this.turn && generation === this.generation && section === this.section)
+        this.handlers.error(error);
     } finally {
       release();
     }
@@ -176,13 +189,17 @@ export class Conversation {
     this.queued = null;
     if (request.turn !== this.turn) return;
     this.active = { request };
-    this.connection.respond(request);
+    this.connection.respond({
+      ...request,
+      voiceSpeed: this.handlers.snapshot()?.settings.voiceSpeed,
+    });
   }
   private voiceTurn(id: string, providerInterrupted = false) {
     let turn = this.voiceTurns.get(id);
     if (turn === undefined) {
       turn = this.begin(providerInterrupted);
       this.voiceTurns.set(id, turn);
+      this.voiceSections.set(id, this.section);
       this.handlers.message('user', 'Listening…', `user:${id}`, false);
     }
     return turn;
@@ -208,15 +225,15 @@ export class Conversation {
         }
         break;
       case 'conversation.item.input_audio_transcription.delta':
-        if (event.item_id && event.delta)
+        if (event.item_id && event.delta && this.voiceSections.get(event.item_id) === this.section)
           this.handlers.message('user', event.delta, `user:${event.item_id}`, false);
         break;
       case 'conversation.item.input_audio_transcription.completed':
-        if (event.item_id)
+        if (event.item_id && this.voiceSections.get(event.item_id) === this.section)
           this.handlers.message('user', event.transcript ?? '', `user:${event.item_id}`, true);
         break;
       case 'conversation.item.input_audio_transcription.failed':
-        if (event.item_id)
+        if (event.item_id && this.voiceSections.get(event.item_id) === this.section)
           this.handlers.message(
             'user',
             '(Voice caption unavailable)',
@@ -312,8 +329,30 @@ export class Conversation {
           return;
         }
         if (response.status !== 'completed') {
+          if (response.status === 'cancelled') {
+            if (!record.settled && record.text)
+              this.handlers.message('assistant', record.text, `assistant:${record.id}`, true, true);
+            record.settled = true;
+            this.pending = null;
+            if (!this.queued)
+              this.handlers.phase(
+                this.handlers.snapshot()?.session?.status === 'paused' ? 'paused' : 'listening',
+              );
+            this.pump();
+            return;
+          }
+          const detail = z
+            .object({
+              error: z
+                .object({ code: z.string().optional(), message: z.string().optional() })
+                .optional(),
+            })
+            .safeParse(response.status_details);
+          const provider = detail.success ? detail.data.error : undefined;
           this.handlers.error(
-            'The coach could not finish that response. Your exercise remains saved; try the message again.',
+            provider
+              ? `Coach response failed (${provider.code ?? response.status}): ${provider.message ?? 'No provider details.'}`
+              : 'The coach could not finish that response. Your exercise remains saved; try the message again.',
           );
           this.pump();
           return;
@@ -333,7 +372,11 @@ export class Conversation {
             event.error?.code ?? '',
           )
         ) {
-          this.handlers.error(event.error?.message ?? 'The realtime coach reported an error.');
+          this.handlers.error(
+            event.error?.code
+              ? `Realtime ${event.error.code}: ${event.error.message}`
+              : (event.error?.message ?? 'The realtime coach reported an error.'),
+          );
         }
         break;
     }
@@ -364,7 +407,15 @@ export class Conversation {
               `The coach requested an unknown tool: ${call.name ?? '(missing name)'}.`,
             );
           const args = z.record(z.string(), z.unknown()).parse(JSON.parse(call.arguments ?? '{}'));
-          if (['select_lesson', 'show_welcome', 'teach_lesson', 'start_practice'].includes(name)) {
+          if (
+            [
+              'select_lesson',
+              'adjust_session',
+              'show_welcome',
+              'teach_lesson',
+              'start_practice',
+            ].includes(name)
+          ) {
             this.section++;
             section = this.section;
           }
@@ -438,11 +489,8 @@ export class Conversation {
     try {
       if (!current()) return;
       const next = await this.handlers.afterReply(pending, current);
-      if (next && generation === this.generation && this.connection.connected) {
-        this.handlers.result(next);
-        if (!current()) this.connection.message(next.agent.update, 'system');
-      }
       if (next && current()) {
+        this.handlers.result(next);
         this.begin();
         this.pending = next;
         this.connection.message(next.agent.update, 'system');

@@ -13,6 +13,8 @@ const controls = vi.hoisted(() => ({
   speaking: vi.fn(),
   output: vi.fn<() => Promise<void>>(),
   calls: vi.fn(),
+  settings: vi.fn(),
+  readState: vi.fn(),
 }));
 vi.mock('../frontend/audio/audio.js', () => ({
   AudioEngine: class {
@@ -57,9 +59,10 @@ vi.mock('../frontend/lib/api.js', () => ({
   callAgentTool: controls.calls,
   acknowledgePlayback: vi.fn(async () => undefined),
   acknowledgeTeaching: vi.fn(),
-  getState: vi.fn(),
+  getState: controls.readState,
   getCurriculum: vi.fn(),
-  saveSettings: vi.fn(),
+  saveSettings: controls.settings,
+  saveTranscript: vi.fn(async () => undefined),
   api: vi.fn(),
 }));
 
@@ -115,6 +118,27 @@ afterEach(async () => {
 });
 
 describe('automatic section activation', () => {
+  it('does not let a late replay snapshot undo the latest speaker volume or tutor speed', async () => {
+    const before = structuredClone(state.getState().snapshot!);
+    let release!: () => void;
+    controls.readState.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve(before);
+        }),
+    );
+    controls.settings.mockImplementation(async (settings) => {
+      await store.user.saveSettings(settings);
+      return { settings };
+    });
+    const reading = studio.refresh();
+    await studio.updateSettings({ volume: 0.25, voiceSpeed: 1.35 });
+    release();
+    await reading;
+    expect(state.getState().snapshot!.settings).toMatchObject({ volume: 0.25, voiceSpeed: 1.35 });
+    expect(await store.user.getSettings()).toMatchObject({ volume: 0.25, voiceSpeed: 1.35 });
+  });
+
   it('connects once and preserves the unanswered question without opening the microphone', async () => {
     const id = state.getState().snapshot!.current!.id;
     const first = studio.enterSection();

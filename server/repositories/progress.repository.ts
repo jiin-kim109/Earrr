@@ -12,7 +12,7 @@ export class ProgressRepository {
   async initialize() {
     await this.database
       .prepare(
-        'INSERT INTO course(id, skill_id, revision) VALUES (1, ?, 3) ON CONFLICT(id) DO NOTHING',
+        'INSERT INTO course(id, skill_id, revision) VALUES (1, ?, 4) ON CONFLICT(id) DO NOTHING',
       )
       .run(skills[0]!.id);
   }

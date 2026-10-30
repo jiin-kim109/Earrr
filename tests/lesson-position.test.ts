@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Store } from '../server/db/database.js';
 import { AgentService } from '../server/services/agent/agent.service.js';
 import type { ToolName } from '../server/types/agent.types.js';
-import { skillIds } from '../shared/schemas/course.js';
+import { skills } from '../server/services/exercise/catalog.js';
 import { teachingSteps } from '../server/services/exercise/lessons.js';
 
 let store: Store;
@@ -105,7 +105,7 @@ describe('one saved learning position per lesson and mode', () => {
     const overview = await call('play_exercise');
     await game.exercises.teachingDelivered(sessionId!, overview.teaching!.presentationId);
     expect((await game.snapshot()).teaching?.playedSteps).toEqual(['overview']);
-    await call('select_lesson', { skillId: 'pitch-direction' });
+    await call('select_lesson', { skillId: 'triads' });
     const pitch = await call('teach_lesson', { stepId: 'overview' });
     expect(pitch.teaching?.playedSteps).toEqual([]);
     const returned = await call('select_lesson', { skillId: 'intervals-foundation' }, true);
@@ -222,7 +222,7 @@ describe('explicit tutorial reset', () => {
 });
 
 describe('unscored piano facts', () => {
-  it.each(skillIds)(
+  it.each(skills.map((skill) => skill.id))(
     'uses actual %s demo notes in the same diagram contract as grading',
     async (skillId) => {
       for (const step of teachingSteps(skillId, 'piano')) {

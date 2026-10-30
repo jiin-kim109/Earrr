@@ -10,10 +10,14 @@ function isTimeZone(value: string): boolean {
   }
 }
 
+export const voiceSpeeds = [0.9, 1.05, 1.2, 1.35, 1.5] as const;
+export const defaultVoiceSpeed = 1.2;
+
 export const settingsSchema = z
   .object({
     instrument: instrumentSchema,
     volume: z.number().min(0).max(1),
+    voiceSpeed: z.union(voiceSpeeds.map((speed) => z.literal(speed))).default(defaultVoiceSpeed),
     voice: z.enum(['sage', 'ash', 'coral', 'verse']),
     timezone: z.string().max(80).refine(isTimeZone, 'Choose a valid time zone.'),
   })

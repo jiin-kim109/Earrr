@@ -30,6 +30,25 @@ async function play(sessionId: string) {
   return (await store.exercises.get(result.snapshot.current!.id))!;
 }
 describe('one-lesson course and honest checkpoints', () => {
+  it('rejects removed lesson requests nonfatally without changing the saved round', async () => {
+    const sessionId = await begin();
+    await play(sessionId);
+    const before = await game.snapshot();
+    for (const skillId of ['scale-degrees', 'chord-roots'])
+      await expect(
+        game.execute({
+          callId: randomUUID(),
+          sessionId,
+          name: 'select_lesson',
+          arguments: { skillId },
+        }),
+      ).rejects.toMatchObject({ code: 'lesson_unavailable', status: 409 });
+    const after = await game.snapshot();
+    expect(after.current).toEqual(before.current);
+    expect(after.course).toEqual(before.course);
+    expect(after.totalAnswers).toBe(before.totalAnswers);
+  });
+
   it('can complete every lesson using genuine varied generated exercises, including reference-pitch naming', async () => {
     const sessionId = await begin();
     for (const skill of skills) {

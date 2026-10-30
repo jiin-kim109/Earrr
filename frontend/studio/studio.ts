@@ -61,8 +61,11 @@ class Studio {
   private settingsQueue: Promise<void> = Promise.resolve();
   private saving: Promise<void> = Promise.resolve();
   private settingsVersion = 0;
+  private soloOperations: Promise<void> = Promise.resolve();
   private previewGeneration = 0;
   private playbackGeneration = 0;
+  private speakerRequest = 0;
+  private chatView: { owner: string; section: string; since: string } | null = null;
 
   readonly audio = new AudioEngine((error) => {
     this.patch({ voiceBlocked: true });
@@ -286,6 +289,7 @@ class Studio {
     this.stopMicrophonePreview();
     await this.initialization;
     await this.saving;
+    await this.settingsQueue;
     if (!this.state.snapshot) {
       this.patch({ busy: false, loading: false, setupOpen: true, setupComplete: false });
       return;
@@ -313,7 +317,9 @@ class Studio {
     this.stopMicrophonePreview();
     await this.initialization;
     await this.saving;
+    await this.settingsQueue;
     await waitForSaves();
+    this.settingsVersion = 0;
     this.patch({
       snapshot: null,
       messages: [],
@@ -364,14 +370,51 @@ class Studio {
     if (this.state.fatalError) return;
     const nextId = snapshot.session?.id;
     const changedLesson =
-      nextId !== this.state.snapshot?.session?.id ||
-      snapshot.course.selectedLesson !== this.state.snapshot?.course.selectedLesson;
+      this.state.snapshot !== null &&
+      (nextId !== this.state.snapshot?.session?.id ||
+        snapshot.course.selectedLesson !== this.state.snapshot?.course.selectedLesson ||
+        (snapshot.teaching?.section === 'welcome') !==
+          (this.state.snapshot?.teaching?.section === 'welcome'));
+    // A delayed tool snapshot must not undo newer settings chosen in this tab.
+    if (this.settingsVersion > 0 && this.state.snapshot)
+      snapshot = { ...snapshot, settings: this.state.snapshot.settings };
     this.audio.setVolume(snapshot.settings.volume);
+    const section = snapshot.teaching?.section ?? snapshot.course.selectedLesson;
+    const owner = scope();
+    if (!this.chatView) {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem('earrr:conversation-view') ?? 'null');
+        if (
+          saved?.owner === owner &&
+          saved.section === section &&
+          typeof saved.since === 'string' &&
+          Number.isFinite(Date.parse(saved.since))
+        )
+          this.chatView = { owner, section, since: saved.since };
+      } catch {
+        // Storage-disabled browsers still get an in-memory lesson conversation.
+      }
+    }
+    const resetChat =
+      changedLesson || this.chatView?.owner !== owner || this.chatView.section !== section;
+    if (resetChat) {
+      this.chatView = {
+        owner,
+        section,
+        since: new Date(Math.max(Date.now(), this.messageTime + 1)).toISOString(),
+      };
+      this.captionDeltas.clear();
+      try {
+        sessionStorage.setItem('earrr:conversation-view', JSON.stringify(this.chatView));
+      } catch {}
+    }
     const messages = new Map(
-      [...(snapshot.transcript ?? []), ...this.state.messages].map((message) => [
-        message.id,
-        message,
-      ]),
+      [
+        ...(snapshot.transcript ?? []).filter(
+          (message) => message.createdAt >= this.chatView!.since,
+        ),
+        ...(resetChat ? [] : this.state.messages),
+      ].map((message) => [message.id, message]),
     );
     this.patch({
       snapshot,
@@ -415,8 +458,9 @@ class Studio {
     this.settingsQueue = this.settingsQueue.then(async () => {
       try {
         const saved = await saveSettings(settings);
-        if (this.state.snapshot && version === this.settingsVersion)
+        if (this.state.snapshot && version === this.settingsVersion) {
           this.patch({ snapshot: { ...this.state.snapshot, settings: saved.settings } });
+        }
         success = true;
       } catch (error) {
         if (version === this.settingsVersion && this.state.snapshot) {
@@ -495,12 +539,15 @@ class Studio {
     }
   }
   async chooseSpeaker(speakerDevice: string) {
+    const request = ++this.speakerRequest;
     const surface = this.audioSurface();
+    this.patch({ speakerDevice });
     try {
       let selected = speakerDevice;
       try {
         await this.audio.setOutputDevice(selected);
       } catch (error) {
+        if (request !== this.speakerRequest) return;
         const devices = navigator.mediaDevices;
         if (
           !(error instanceof DOMException && error.name === 'NotAllowedError') ||
@@ -514,12 +561,16 @@ class Studio {
         selected = output.deviceId;
         await this.audio.setOutputDevice(selected);
       }
+      if (request !== this.speakerRequest) return;
       this.patch({ speakerDevice: selected });
       this.dismissAudioNotice(surface);
       this.remember('speaker', selected);
       void this.refreshDevices();
     } catch (error) {
-      this.reportAudioError(error, surface);
+      if (request === this.speakerRequest) {
+        this.patch({ speakerDevice: this.audio.outputDeviceId });
+        this.reportAudioError(error, surface);
+      }
     }
   }
   async chooseMicrophone(microphoneDevice: string) {
@@ -1035,6 +1086,10 @@ class Studio {
       await this.action('select_lesson', { skillId });
       return;
     }
+    if (this.state.snapshot?.session?.mode === 'solo' && !this.state.setupOpen) {
+      await this.soloAction('select_lesson', { skillId });
+      return;
+    }
     const turn = ++this.soloTurn;
     this.audio.stop();
     try {
@@ -1086,11 +1141,18 @@ class Studio {
       turn === this.soloTurn &&
       generation === this.generation &&
       this.state.snapshot?.session?.id === session.id;
+    this.audio.stop();
+    const previous = this.soloOperations;
+    let release!: () => void;
+    this.soloOperations = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
     try {
-      this.audio.stop();
+      if (!isCurrent()) return;
       let result: ToolResult | null = await callTool(name, args, session.id);
       if (!isCurrent()) return;
-      if (name === 'resume_session') {
+      if (name === 'resume_session' || name === 'select_lesson') {
         this.applyResult(result);
         result = await callTool('play_exercise', {}, session.id);
       }
@@ -1107,6 +1169,8 @@ class Studio {
       }
     } catch (error) {
       if (isCurrent()) this.reportError(error);
+    } finally {
+      release();
     }
   }
   private async play(plan: AudioPlan, sessionId: string, exerciseId?: string, replay = false) {
@@ -1134,7 +1198,7 @@ class Studio {
     result: ToolResult | null,
     isCurrent: () => boolean,
   ): Promise<ToolResult | null> {
-    if (!result || this.state.fatalError) return null;
+    if (!result || this.state.fatalError || !isCurrent()) return null;
     if (result.endConversation) {
       this.cancelEntry();
       this.disconnect();

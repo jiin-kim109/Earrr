@@ -679,7 +679,7 @@ test('combines speaker, master volume and fixed-size instrument controls without
   const popup = page.getByRole('dialog', { name: 'Audio settings', exact: true });
   await expect(popup.getByRole('radiogroup', { name: 'Speakers', exact: true })).toBeVisible();
   await expect(popup.getByText('Instrument sound', { exact: true })).toBeVisible();
-  await expect(popup.getByRole('slider')).toHaveCount(1);
+  await expect(popup.getByRole('slider')).toHaveCount(2);
   const popupBefore = (await popup.boundingBox())!;
   const pickerBefore = (await popup
     .getByRole('button', { name: /^Change instrument:/ })
@@ -778,7 +778,7 @@ for (const viewport of [
     const popup = page.getByRole('dialog', { name: 'Audio settings', exact: true });
     const sound = popup.getByRole('slider', { name: 'Speaker volume', exact: true });
     await expect(sound).toHaveAttribute('aria-valuenow', '0');
-    await expect(popup.getByRole('slider')).toHaveCount(1);
+    await expect(popup.getByRole('slider')).toHaveCount(2);
     await expect(popup.getByText('Instrument sound', { exact: true })).toBeVisible();
     await sound.focus();
     await page.keyboard.press('End');
@@ -1185,6 +1185,10 @@ test('shows the waveform only during coach speech and no unsolicited speaker for
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').ready()))
     .toBe(true);
+  await page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').tool('play_exercise', {}));
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').ready()))
+    .toBe(true);
   await page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').delta('Listen carefully.'));
   await expect(player(page)).toHaveAttribute('data-phase', 'speaking');
   await expect(page.getByRole('img', { name: 'Coach audio', exact: true })).toBeVisible();
@@ -1208,7 +1212,21 @@ test('replays safely when browser translation has replaced button text nodes', a
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').ready()))
     .toBe(true);
+  const playedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/agent/tools') &&
+      response.request().postDataJSON().name === 'play_exercise',
+  );
   await page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').tool('play_exercise', {}));
+  const played: ToolResult = await (await playedResponse).json();
+  if (played.reply !== 'none') {
+    await expect
+      .poll(() => page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').ready()))
+      .toBe(true);
+    await page.evaluate(() =>
+      Reflect.get(window, 'earrrCoachFixture').reply('Does the second note move up or down?'),
+    );
+  }
   await expect(player(page)).toHaveAttribute('data-phase', 'listening');
   const before: Snapshot = await (await request.get('/api/state')).json();
   const replay = player(page).getByRole('button', { name: 'Hear again', exact: true });
@@ -2292,6 +2310,12 @@ test('gives the selected lesson breathing room inside its gray group', async ({ 
   await page.goto('/');
   await enter(page);
   await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  await page
+    .getByRole('navigation', { name: 'Chapters and lessons' })
+    .getByRole('button', { name: /Intervals/, expanded: false })
+    .click();
+  await page.getByRole('button', { name: /^Intervals up & down(?:, completed)?$/ }).click();
+  await expect(page.getByTestId('lesson-toolbar')).toHaveText('Intervals up & down');
   const selected = page
     .getByRole('navigation', { name: 'Chapters and lessons' })
     .locator('[aria-current="step"]');
@@ -2802,6 +2826,26 @@ test('Tutorial return cancels safely or resets only the confirmed round', async 
   page,
   request,
 }) => {
+  await prepareIntervalLesson('http://127.0.0.1:3101', 'intervals-foundation');
+  const started: ToolResult = await (
+    await request.post('/api/tools', {
+      headers: { 'x-earrr-client': '1' },
+      data: {
+        callId: randomUUID(),
+        name: 'start_session',
+        arguments: { mode: 'coach', focus: 'intervals-foundation' },
+      },
+    })
+  ).json();
+  await request.post('/api/tools', {
+    headers: { 'x-earrr-client': '1' },
+    data: {
+      callId: randomUUID(),
+      sessionId: started.snapshot.session!.id,
+      name: 'start_practice',
+      arguments: {},
+    },
+  });
   await mockConfigured(page);
   await page.addInitScript({ content: controlledCoachScript });
   await page.route('**/api/realtime/connect', (route) =>
@@ -2861,7 +2905,7 @@ test('offers Start exercises instead of Skip at the final tutorial invitation', 
       data: {
         callId: randomUUID(),
         name: 'start_session',
-        arguments: { mode: 'coach' },
+        arguments: { mode: 'coach', focus: 'intervals-foundation' },
       },
     })
   ).json();
@@ -2897,7 +2941,7 @@ for (const viewport of [
   { width: 1440, height: 900 },
   { width: 390, height: 844 },
 ]) {
-  test(`shows section 00 Welcome and waits for an explicit lesson handoff at ${viewport.width}`, async ({
+  test(`keeps Welcome off the sidebar and hands off directly to chapter 00 practice at ${viewport.width}`, async ({
     page,
     request,
   }) => {
@@ -2962,8 +3006,12 @@ for (const viewport of [
     const welcome = page
       .getByRole('navigation', { name: 'Chapters and lessons' })
       .getByRole('button', { name: 'Welcome', exact: true });
-    await expect(welcome).toContainText('00');
-    await expect(welcome).toHaveAttribute('aria-current', 'step');
+    await expect(welcome).toHaveCount(0);
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Chapters and lessons' })
+        .getByRole('button', { name: /^Pitch direction/ }),
+    ).toContainText('00');
     if (viewport.width < 1024) await page.keyboard.press('Escape');
     await page.screenshot({
       path: `test-results\\brief-welcome-${viewport.width}.png`,
@@ -2975,11 +3023,15 @@ for (const viewport of [
     await expect(player(page)).toHaveAttribute('data-mode', 'welcome');
     await page.getByRole('button', { name: 'Start learning', exact: true }).click();
     await expect(page.getByTestId('lesson-toolbar')).toHaveText('Pitch direction');
-    await expect(player(page)).toHaveAttribute('data-mode', 'teaching');
-    await expect(page.getByRole('button', { name: 'Skip tutorial', exact: true })).toBeVisible();
+    await expect(player(page)).toHaveAttribute('data-mode', 'practice');
+    await expect(page.getByRole('button', { name: 'Skip tutorial', exact: true })).toHaveCount(0);
+    await expect(player(page).getByRole('button', { name: 'Tutorial', exact: true })).toHaveCount(
+      0,
+    );
     const moved: Snapshot = await (await request.get('/api/state')).json();
     expect(moved.course.welcomeSeen).toBe(true);
-    expect(moved.teaching?.stepId).toBe('overview');
+    expect(moved.teaching).toBeNull();
+    expect(moved.current?.prompt).toContain('Pitch is how high or low');
     expect(moved.totalAnswers).toBe(waiting.totalAnswers);
     await noPageScroll(page);
   });
@@ -3187,8 +3239,10 @@ for (const viewport of [
       await page.getByRole('button', { name: 'Open lessons', exact: true }).click();
     await page.getByRole('button', { name: /^Pitch direction(?:, completed)?$/ }).click();
     await expect(page.getByTestId('lesson-toolbar')).toContainText('Pitch direction');
-    if (viewport.width < 1024)
+    if (viewport.width < 1024) {
       await page.getByRole('button', { name: 'Open lessons', exact: true }).click();
+      await page.getByRole('button', { name: /Intervals/, expanded: false }).click();
+    }
     await page.getByRole('button', { name: /^Intervals up & down(?:, completed)?$/ }).click();
     await expect(page.getByTestId('lesson-toolbar')).toContainText('Intervals up & down');
     await expect(player(page)).toHaveAttribute('data-mode', 'teaching');
@@ -3392,7 +3446,7 @@ test('chapter hover stays quiet and desktop marks are larger than mobile marks',
   await enter(page);
   const chapter = page
     .getByRole('navigation', { name: 'Chapters and lessons' })
-    .getByRole('button', { expanded: true })
+    .getByRole('button', { expanded: false })
     .first();
   const color = await chapter.evaluate((element) => getComputedStyle(element).backgroundColor);
   await chapter.hover();
@@ -3417,7 +3471,24 @@ for (const viewport of [
 ]) {
   test(`balances card controls and answer spacing at ${viewport.width}x${viewport.height}`, async ({
     page,
+    request,
   }) => {
+    await prepareIntervalLesson('http://127.0.0.1:3101', 'intervals-foundation');
+    const started: ToolResult = await (
+      await request.post('/api/tools', {
+        headers: { 'x-earrr-client': '1' },
+        data: { callId: randomUUID(), name: 'start_session', arguments: { mode: 'solo' } },
+      })
+    ).json();
+    await request.post('/api/tools', {
+      headers: { 'x-earrr-client': '1' },
+      data: {
+        callId: randomUUID(),
+        sessionId: started.snapshot.session!.id,
+        name: 'play_exercise',
+        arguments: {},
+      },
+    });
     await page.setViewportSize(viewport);
     await page.goto('/');
     await enter(page);

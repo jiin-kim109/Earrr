@@ -9,7 +9,7 @@ import { ReplayIndicator } from '@/audio/ReplayIndicator';
 export function TutorialReturn() {
   const { state, snapshot, session, teaching } = useLesson();
   const [roundId, setRoundId] = useState<string | null>(null);
-  if (teaching || !session) return null;
+  if (teaching || !session || snapshot.course.selectedLesson === 'pitch-direction') return null;
   return (
     <AlertDialog.Root
       onOpenChange={(open) => {

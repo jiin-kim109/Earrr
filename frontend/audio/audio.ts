@@ -45,6 +45,7 @@ export class AudioEngine {
   private generation = 0;
   private voiceGeneration = 0;
   private outputDevice = '';
+  private outputChanges: Promise<void> = Promise.resolve();
   private playbackStartedAt: number | null = null;
   private readonly bank = new SampleBank();
 
@@ -167,7 +168,17 @@ export class AudioEngine {
     return 'setSinkId' in AudioContext.prototype && 'setSinkId' in HTMLMediaElement.prototype;
   }
 
-  async setOutputDevice(id: string) {
+  get outputDeviceId() {
+    return this.outputDevice;
+  }
+
+  setOutputDevice(id: string): Promise<void> {
+    const operation = this.outputChanges.then(() => this.switchOutputDevice(id));
+    this.outputChanges = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async switchOutputDevice(id: string) {
     await this.unlock();
     const element = this.player();
     const context = this.context!;
@@ -229,55 +240,62 @@ export class AudioEngine {
   async play(plan: AudioPlan, onStarted?: () => void): Promise<boolean> {
     this.stop();
     const generation = this.generation;
-    await this.unlock();
-    if (generation !== this.generation) return false;
-    const context = this.context!;
-    await this.bank.prepare(
-      context,
-      plan.instrument,
-      plan.events.map((note) => note.midi),
-    );
-    if (generation !== this.generation) return false;
-    const start = context.currentTime + 0.08;
-    this.playbackStartedAt = start;
-    const polyphony = Math.max(
-      1,
-      ...plan.events.map(
-        (note) =>
-          plan.events.filter(
-            (other) => other.at <= note.at && other.at + other.duration + 0.3 > note.at,
-          ).length,
-      ),
-    );
-    for (const note of plan.events) this.scheduleNote(note, plan.instrument, start, polyphony);
+    try {
+      await this.unlock();
+      if (generation !== this.generation) return false;
+      const context = this.context!;
+      await this.bank.prepare(
+        context,
+        plan.instrument,
+        plan.events.map((note) => note.midi),
+      );
+      if (generation !== this.generation) return false;
+      const start = context.currentTime + 0.08;
+      this.playbackStartedAt = start;
+      const polyphony = Math.max(
+        1,
+        ...plan.events.map(
+          (note) =>
+            plan.events.filter(
+              (other) => other.at <= note.at && other.at + other.duration + 0.3 > note.at,
+            ).length,
+        ),
+      );
+      for (const note of plan.events) this.scheduleNote(note, plan.instrument, start, polyphony);
 
-    // An audio node, rather than a UI timer, completes playback in background tabs.
-    const sentinel = context.createBufferSource();
-    const duration = Math.max(
-      plan.duration,
-      ...plan.events.map((note) => note.at + note.duration + 0.35),
-    );
-    sentinel.buffer = context.createBuffer(
-      1,
-      Math.ceil(context.sampleRate * (duration + 0.1)),
-      context.sampleRate,
-    );
-    sentinel.connect(this.musicGain!);
-    this.sentinel = sentinel;
-    sentinel.start(start);
-    onStarted?.();
-    return new Promise<boolean>((resolve) => {
-      this.completion = resolve;
-      sentinel.onended = () => {
-        if (generation !== this.generation) return;
-        for (const note of this.notes) this.release(note);
-        sentinel.disconnect();
-        this.sentinel = null;
-        this.playbackStartedAt = null;
-        this.completion = null;
-        resolve(true);
-      };
-    });
+      // An audio node, rather than a UI timer, completes playback in background tabs.
+      const sentinel = context.createBufferSource();
+      const duration = Math.max(
+        plan.duration,
+        ...plan.events.map((note) => note.at + note.duration + 0.35),
+      );
+      sentinel.buffer = context.createBuffer(
+        1,
+        Math.ceil(context.sampleRate * (duration + 0.1)),
+        context.sampleRate,
+      );
+      sentinel.connect(this.musicGain!);
+      this.sentinel = sentinel;
+      const completed = new Promise<boolean>((resolve) => {
+        this.completion = resolve;
+        sentinel.onended = () => {
+          if (generation !== this.generation) return;
+          for (const note of this.notes) this.release(note);
+          sentinel.disconnect();
+          this.sentinel = null;
+          this.playbackStartedAt = null;
+          this.completion = null;
+          resolve(true);
+        };
+      });
+      sentinel.start(start);
+      onStarted?.();
+      return await completed;
+    } catch (error) {
+      if (generation !== this.generation) return false;
+      this.stop();
+      throw error;
+    }
   }
 
   stop() {

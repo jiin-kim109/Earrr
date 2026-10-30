@@ -55,12 +55,12 @@ describe('passed-lesson cosmetic ear titles', () => {
       expect(companionRank(curriculum, inProgress).tier).toBe(0);
       for (const [count, tier] of [
         [1, 1],
-        [7, 1],
-        [8, 2],
-        [15, 3],
-        [22, 4],
-        [28, 4],
-        [29, 5],
+        [6, 1],
+        [7, 2],
+        [14, 3],
+        [21, 4],
+        [26, 4],
+        [27, 5],
       ] as const) {
         const next = structuredClone(course);
         for (const lesson of next.lessons.slice(-count)) lesson.status = 'completed';

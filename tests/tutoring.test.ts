@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { teachingSteps, lessonExamples } from '../server/services/exercise/lessons.js';
 import { chordNotes, chords, scales } from '../server/services/exercise/music.js';
-import { chordQualities, scaleIds, skillIds } from '../shared/schemas/course.js';
+import { chordQualities, scaleIds } from '../shared/schemas/course.js';
+import { skills, hasTutorial } from '../server/services/exercise/catalog.js';
 import type { SkillId } from '../shared/types/course.js';
 import type { ToolName } from '../server/types/agent.types.js';
 import { Store } from '../server/db/database.js';
@@ -19,7 +20,7 @@ beforeEach(async () => {
 afterEach(async () => await store.close());
 const call = async (name: ToolName, args: Record<string, unknown> = {}) =>
   await game.execute({ callId: randomUUID(), sessionId, name, arguments: args });
-async function begin(skillId: SkillId = 'pitch-direction') {
+async function begin(skillId: SkillId = 'intervals-foundation') {
   sessionId = (await call('start_session', { mode: 'coach', focus: skillId })).snapshot.session!.id;
   return await call('play_exercise');
 }
@@ -56,8 +57,8 @@ describe('a tutor before an examiner', () => {
     expect(before.teaching?.index).toBe(0);
     expect(await game.exercises.teachingDelivered(sessionId!, firstId)).toBe(true);
     const next = await call('continue_teaching', { presentationId: firstId });
-    expect(next.teaching?.stepId).toBe('up');
-    expect(next.audio?.events).toHaveLength(2);
+    expect(next.teaching?.stepId).toBe('minor-third');
+    expect(next.audio?.events).toHaveLength(4);
     expect(next.playbackExerciseId).toBeUndefined();
     expect(next.snapshot.current).toBeNull();
     expect(next.snapshot.totalAnswers).toBe(0);
@@ -128,7 +129,7 @@ describe('a tutor before an examiner', () => {
       await game.exercises.teachingDelivered(sessionId!, result.teaching.presentationId);
       result = await call('continue_teaching', { presentationId: result.teaching.presentationId });
     }
-    expect(segments).toBe(teachingSteps('pitch-direction', 'piano').length - 1);
+    expect(segments).toBe(teachingSteps('intervals-foundation', 'piano').length - 1);
     expect(result.teaching).toMatchObject({
       stepId: 'ready-for-practice',
       awaitingPractice: true,
@@ -143,7 +144,7 @@ describe('a tutor before an examiner', () => {
         awaitingPractice: true,
       }),
     );
-    expect(await store.progress.introductionSeen('pitch-direction')).toBe(false);
+    expect(await store.progress.introductionSeen('intervals-foundation')).toBe(false);
     const presentationId = result.teaching!.presentationId;
     await game.exercises.teachingDelivered(sessionId!, presentationId);
     for (let repeat = 0; repeat < 2; repeat++) {
@@ -158,7 +159,7 @@ describe('a tutor before an examiner', () => {
     expect(result.snapshot.session?.phase).toBe('practice');
     expect(result.snapshot.current?.status).toBe('unanswered');
     expect(result.snapshot.totalAnswers).toBe(0);
-    expect(await store.progress.introductionSeen('pitch-direction')).toBe(true);
+    expect(await store.progress.introductionSeen('intervals-foundation')).toBe(true);
     await call('end_session');
     sessionId = undefined;
     const restarted = await call('start_session', { mode: 'coach' });
@@ -182,7 +183,7 @@ describe('a tutor before an examiner', () => {
     expect(waiting.snapshot.session?.phase).toBe('teaching');
     expect(waiting.snapshot.current).toBeNull();
     expect(waiting.snapshot.totalAnswers).toBe(0);
-    const repeated = await call('teach_lesson', { stepId: 'up' });
+    const repeated = await call('teach_lesson', { stepId: 'minor-third' });
     expect(repeated.teaching?.awaitingPractice).toBe(false);
     expect(repeated.snapshot.current).toBeNull();
     expect(repeated.audio).toBeDefined();
@@ -202,16 +203,19 @@ describe('a tutor before an examiner', () => {
 });
 
 describe('deterministic instructional music', () => {
-  it('teaches just upward and downward motion before inviting pitch-direction practice', () => {
-    const steps = teachingSteps('pitch-direction', 'piano');
-    expect(steps.map((step) => step.id)).toEqual(['overview', 'up', 'down', 'ready-for-practice']);
-    expect(lessonExamples('pitch-direction', 'piano')).toHaveLength(2);
-    for (const step of steps.filter((item) => item.audio)) {
-      const [first, second] = step.audio!.events;
-      expect(first!.midi).not.toBe(second!.midi);
-    }
+  it('starts pitch direction directly with a short instruction and never opens a tutorial', async () => {
+    const result = await begin('pitch-direction');
+    expect(teachingSteps('pitch-direction', 'piano')).toEqual([]);
+    expect(lessonExamples('pitch-direction', 'piano')).toEqual([]);
+    expect(result.snapshot.session?.phase).toBe('practice');
+    expect(result.snapshot.teaching).toBeNull();
+    expect(result.reply).toBe('instruction');
+    expect(result.snapshot.current?.prompt).toContain('Pitch is how high or low');
+    const requested = await call('teach_lesson');
+    expect(requested.snapshot.teaching).toBeNull();
+    expect(requested.snapshot.current?.id).toBe(result.snapshot.current?.id);
   });
-  it.each(skillIds)(
+  it.each(skills.filter((skill) => hasTutorial(skill.id)).map((skill) => skill.id))(
     'provides explanations and correctly bounded labeled demos for %s',
     (skillId) => {
       const steps = teachingSteps(skillId, 'piano');

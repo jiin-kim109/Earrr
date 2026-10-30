@@ -23,11 +23,11 @@ async function welcome() {
   return call('play_exercise');
 }
 
-describe('brief unscored section 00 Welcome', () => {
+describe('brief unscored first-visit Welcome', () => {
   it('has one short greeting and a next-section question, without music, grades or mastery', async () => {
     const result = await welcome();
     expect(game.exercises.curriculum().welcome).toMatchObject({ number: 0, name: 'Welcome' });
-    expect(game.exercises.curriculum().lessons).toHaveLength(29);
+    expect(game.exercises.curriculum().lessons).toHaveLength(27);
     expect(result.teaching).toMatchObject({
       section: 'welcome',
       stepId: 'welcome',
@@ -69,8 +69,9 @@ describe('brief unscored section 00 Welcome', () => {
       presentationId: replay.teaching!.presentationId,
     });
     expect(next.teaching?.section).toBeUndefined();
-    expect(next.teaching?.stepId).toBe('overview');
-    expect(next.snapshot.current).toBeNull();
+    expect(next.snapshot.teaching).toBeNull();
+    expect(next.snapshot.current?.skillId).toBe('pitch-direction');
+    expect(next.snapshot.current?.prompt).toContain('Pitch is how high or low');
     expect(next.snapshot.course.welcomeSeen).toBe(true);
     expect(next.snapshot.course.completedLessons).toBe(0);
     expect(await store.progress.introductionSeen('pitch-direction')).toBe(false);
@@ -79,6 +80,7 @@ describe('brief unscored section 00 Welcome', () => {
   it('keeps the separate tutorial-to-exercise consent boundary after leaving Welcome', async () => {
     const initial = await welcome();
     await call('continue_teaching', { presentationId: initial.teaching!.presentationId });
+    await call('select_lesson', { skillId: 'intervals-foundation' });
     const ready = await call('teach_lesson', { stepId: 'ready-for-practice' });
     await game.exercises.teachingDelivered(sessionId!, ready.teaching!.presentationId);
     const stillWaiting = await call('continue_teaching', {
@@ -150,7 +152,8 @@ describe('brief unscored section 00 Welcome', () => {
     const continued = await call('continue_teaching', {
       presentationId: restored.teaching!.presentationId,
     });
-    expect(continued.teaching?.stepId).toBe('overview');
+    expect(continued.snapshot.teaching).toBeNull();
+    expect(continued.snapshot.current?.skillId).toBe('pitch-direction');
     expect(continued.snapshot.course.welcomeSeen).toBe(true);
   });
 

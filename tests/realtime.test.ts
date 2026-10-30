@@ -63,6 +63,22 @@ afterEach(() => {
 });
 
 describe('one realtime connection with optional microphone', () => {
+  it('updates native speech speed only at the next response boundary and does not reconnect', async () => {
+    setup();
+    const send = vi.spyOn(Channel.prototype, 'send');
+    const connection = new RealtimeConnection(handlers());
+    await connection.connect('session');
+    for (const [turn, voiceSpeed] of [1.2, 1.2, 1.5, 0.9].entries())
+      connection.respond({ id: `reply-${turn}`, turn, tools: 'none', voiceSpeed });
+    const events = send.mock.calls.map(([json]) => JSON.parse(json));
+    const speeds = events.filter((event) => event.session?.audio?.output?.speed !== undefined);
+    expect(speeds.map((event) => event.session.audio.output.speed)).toEqual([1.2, 1.5, 0.9]);
+    for (const event of speeds)
+      expect(events[events.indexOf(event) + 1].type).toBe('response.create');
+    expect(connection.connected).toBe(true);
+    connection.disconnect();
+  });
+
   it('connects without microphone permission and selects tools silently before a native audio reply', async () => {
     setup();
     const capture = vi.fn();

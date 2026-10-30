@@ -1,4 +1,4 @@
-import { settingsSchema } from '../../shared/schemas/user.js';
+import { defaultVoiceSpeed, settingsSchema } from '../../shared/schemas/user.js';
 import type { Settings } from '../../shared/types/user.js';
 import type { Database } from '../db/database.js';
 
@@ -9,6 +9,7 @@ const savedSettingsSchema = settingsSchema
 export const defaultSettings: Settings = {
   instrument: 'piano',
   volume: 0.8,
+  voiceSpeed: defaultVoiceSpeed,
   voice: 'sage',
   timezone: 'UTC',
 };

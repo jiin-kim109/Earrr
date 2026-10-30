@@ -1,4 +1,5 @@
 import type { Skill, SkillId, ChordQuality, ScaleId } from '../../../shared/types/course.js';
+import { AppError } from '../../errors/app-error.js';
 
 export const welcome = {
   number: 0,
@@ -9,9 +10,15 @@ export const welcome = {
 
 export const chapters = [
   {
+    number: 0,
+    name: 'Pitch direction',
+    subtitle: 'Hear whether the sound rises or falls',
+    label: 'Getting started',
+  },
+  {
     number: 1,
-    name: 'Pitch & intervals',
-    subtitle: 'Direction and essential distances',
+    name: 'Intervals',
+    subtitle: 'Essential distances, apart and together',
     label: 'Foundations',
   },
   {
@@ -23,41 +30,35 @@ export const chapters = [
   {
     number: 3,
     name: 'Scales & modes',
-    subtitle: 'Tonal anchors and small scale families',
+    subtitle: 'Small scale families and characteristic tones',
     label: 'Tonal hearing',
   },
   {
     number: 4,
-    name: 'Roots & inversions',
-    subtitle: 'Find the root, then hear the bass position',
-    label: 'Chord positions',
-  },
-  {
-    number: 5,
     name: 'Seventh chords',
     subtitle: 'Hear the fourth chord tone',
     label: 'Seventh colors',
   },
   {
+    number: 5,
+    name: 'Inversions',
+    subtitle: 'Hear the bass position of triads and sevenths',
+    label: 'Chord positions',
+  },
+  {
     number: 6,
-    name: 'Chord progressions',
-    subtitle: 'Learn each function before connecting them',
-    label: 'Harmonic movement',
-  },
-  {
-    number: 7,
-    name: 'Seventh inversions',
-    subtitle: 'Four bass positions, one quality at a time',
-    label: 'Seventh positions',
-  },
-  {
-    number: 8,
     name: 'Added tones & extensions',
     subtitle: 'One new upper color at a time',
     label: 'Upper colors',
   },
   {
-    number: 9,
+    number: 7,
+    name: 'Chord progressions',
+    subtitle: 'Learn each function before connecting them',
+    label: 'Harmonic movement',
+  },
+  {
+    number: 8,
     name: 'Altered dominants',
     subtitle: 'Ninths, fifths and upper alterations',
     label: 'Altered colors',
@@ -89,7 +90,7 @@ export const skills: Skill[] = [
   lesson(
     'pitch-direction',
     'Pitch direction',
-    1,
+    0,
     1,
     'Find the motion between two notes.',
     'Hear upward or downward motion across changing registers.',
@@ -107,7 +108,7 @@ export const skills: Skill[] = [
     'Intervals together',
     1,
     2,
-    'The same five distances, with both notes sounding together.',
+    'The same four distances, with both notes sounding together.',
     'Recognize harmonic intervals across random roots and registers.',
   ),
   lesson('triads', 'Major & minor', 2, 1, 'Hear the third that gives a triad its character.'),
@@ -125,13 +126,6 @@ export const skills: Skill[] = [
     2,
     'Hear sus4 among five familiar chord qualities.',
   ),
-  lesson(
-    'scale-degrees',
-    'Tonal anchors',
-    3,
-    2,
-    'Find do, mi and sol against a major-key cadence.',
-  ),
   lesson('scales', 'Minor scales', 3, 3, 'Natural, harmonic and ascending melodic minor.'),
   lesson('modes', 'Major-family modes', 3, 3, 'Contrast Lydian and Mixolydian with a major scale.'),
   lesson(
@@ -142,112 +136,113 @@ export const skills: Skill[] = [
     'Dorian, Phrygian and Locrian, one characteristic tone at a time.',
   ),
   lesson(
-    'chord-roots',
-    'Roots & quality',
-    4,
-    3,
-    'Use C4 to name a root and its major or minor quality.',
-  ),
-  lesson(
     'triad-inversions',
     'Major triad positions',
-    4,
+    5,
     3,
     'Root, third or fifth in the bass of a major triad.',
   ),
   lesson(
     'minor-inversions',
     'Minor triad positions',
-    4,
+    5,
     3,
     'Apply the same three bass positions to minor triads.',
   ),
   lesson(
     'seventh-chords',
     'Major, minor & dominant',
-    5,
+    4,
     3,
     'Hear M7, m7 and 7 as three distinct colors.',
   ),
-  lesson('seventh-colors', 'Diminished sevenths', 5, 3, 'Contrast m7, m7b5 and dim7.'),
+  lesson('seventh-colors', 'Diminished sevenths', 4, 3, 'Contrast m7, m7b5 and dim7.'),
   lesson(
     'major-functions',
     'Home, lift & return',
-    6,
+    7,
     3,
     'Recognize I, IV and V seventh chords in a key.',
   ),
   lesson(
     'minor-functions',
     'The minor functions',
-    6,
+    7,
     3,
     'Recognize ii, iii and vi after a tonic reference.',
   ),
   lesson(
     'cadences',
     'ii–V–I & first cadences',
-    6,
+    7,
     3,
     'Hear a three-chord path with its middle function missing.',
   ),
   lesson(
     'progressions',
     'Complete the progression',
-    6,
+    7,
     4,
     'Starting and ending chords are given; fill one or two middle functions.',
   ),
   lesson(
     'seventh-inversions',
     'Dominant seventh positions',
-    7,
+    5,
     4,
     'Find the bass position with the dominant quality supplied.',
   ),
   lesson(
     'seventh-color-inversions',
     'Major & minor seventh positions',
-    7,
+    5,
     4,
     'Find four bass positions with the chord quality supplied.',
   ),
-  lesson('added-tones', 'Added ninths', 8, 3, 'Cadd9 and Cm(add9), without a seventh.'),
-  lesson('sixth-chords', 'Sixth chords', 8, 3, 'C6 and Cm6 as a different added-note color.'),
-  lesson('extensions', 'Ninth chords', 8, 4, 'CM9, Cm9 and C9 build on familiar sevenths.'),
+  lesson('added-tones', 'Added ninths', 6, 3, 'Cadd9 and Cm(add9), without a seventh.'),
+  lesson('sixth-chords', 'Sixth chords', 6, 3, 'C6 and Cm6 as a different added-note color.'),
+  lesson('extensions', 'Ninth chords', 6, 4, 'CM9, Cm9 and C9 build on familiar sevenths.'),
   lesson(
     'elevenths',
     'Minor elevenths',
-    8,
+    6,
     4,
     'Hear the added eleventh by comparing Cm9 and Cm11.',
   ),
   lesson(
     'thirteenths',
     'Thirteenth chords',
-    8,
+    6,
     4,
     'CM13, Cm13 and C13, with the eleventh omitted.',
   ),
-  lesson('altered-dominants', 'Altered ninths', 9, 4, 'Distinguish C7b9 from C7#9.'),
-  lesson('altered-fifths', 'Altered fifths', 9, 4, 'Distinguish C7b5 from C7#5.'),
+  lesson('altered-dominants', 'Altered ninths', 8, 4, 'Distinguish C7b9 from C7#9.'),
+  lesson('altered-fifths', 'Altered fifths', 8, 4, 'Distinguish C7b5 from C7#5.'),
   lesson(
     'upper-alterations',
     'Upper alterations',
-    9,
+    8,
     5,
     'C7#11 and C7b13 retain the natural fifth.',
   ),
-].map((skill, index) => ({
-  ...skill,
-  symbol: String(index + 1).padStart(2, '0'),
-}));
+]
+  .sort((a, b) => a.chapter - b.chapter)
+  .map((skill, index) => ({
+    ...skill,
+    symbol: String(index + 1).padStart(2, '0'),
+  }));
 
 export function getSkill(id: SkillId): Skill {
   const skill = skills.find((item) => item.id === id);
-  if (!skill) throw new Error(`Unknown active lesson: ${id}`);
+  if (!skill) throw AppError.create('lesson_unavailable');
   return skill;
 }
+
+export const hasTutorial = (id: SkillId) => id !== 'pitch-direction';
+export const popProgressions = [
+  [1, 5, 6, 4],
+  [6, 4, 1, 5],
+] as const;
 
 export const essentialIntervals = [3, 4, 7, 12] as const;
 export const intervalLessons = {

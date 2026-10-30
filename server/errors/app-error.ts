@@ -24,6 +24,10 @@ const definitions = {
     409,
     'Stay in the selected lesson. Use select_lesson only when the player explicitly chooses another lesson.',
   ],
+  lesson_unavailable: [
+    409,
+    'That lesson is no longer in the course. Choose one of the available lessons.',
+  ],
   nothing_to_replay: [409, 'There is no previous exercise to replay yet.'],
   answer_not_found: [
     404,

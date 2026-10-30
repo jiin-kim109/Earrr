@@ -2,6 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { Database } from '../db/database.js';
 import { AppError } from '../errors/app-error.js';
+import { setTimeout as delay } from 'node:timers/promises';
+
+const retryable = (status: number) =>
+  status === 0 || status === 408 || status === 429 || status >= 500;
+const unavailable = (status: number, code: string) =>
+  AppError.create(
+    'voice_limit_unavailable',
+    `Voice usage protection is unavailable (${status || 'network'}${/^[A-Z0-9_]+$/.test(code) ? `/${code}` : ''}). Refresh to try again.`,
+  );
 
 const limitSchema = z.object({
   usage: z.array(
@@ -48,14 +57,22 @@ export class VoiceLimitRepository {
       });
     }
     // Compare-and-swap keeps the same transition atomic across app workers.
+    const deadline = AbortSignal.timeout(12_000);
     for (let attempt = 0; attempt < 5; attempt++) {
-      const { data, error } = await this.storage
+      const { data, error, status } = await this.storage
         .from('earrr_voice_limits')
         .select('revision,data')
         .eq('ip_key', ip)
-        .abortSignal(AbortSignal.timeout(5000))
+        .retry(false)
+        .abortSignal(AbortSignal.any([deadline, AbortSignal.timeout(5000)]))
         .maybeSingle();
-      if (error) throw AppError.create('voice_limit_unavailable');
+      if (error) {
+        if (attempt < 2 && retryable(status) && !deadline.aborted) {
+          await delay(300 * (attempt + 1), undefined, { signal: deadline });
+          continue;
+        }
+        throw unavailable(status, error.code);
+      }
       const row = data ? rowSchema.parse(data) : null;
       const state: LimitState = row?.data ?? { usage: [], blockedUntil: 0, lease: null };
       const result = change(state);
@@ -65,8 +82,15 @@ export class VoiceLimitRepository {
           expected_revision: row?.revision ?? 0,
           next_data: state,
         })
-        .abortSignal(AbortSignal.timeout(5000));
-      if (saved.error) throw AppError.create('voice_limit_unavailable');
+        .retry(false)
+        .abortSignal(AbortSignal.any([deadline, AbortSignal.timeout(5000)]));
+      if (saved.error) {
+        if (attempt < 2 && retryable(saved.status) && !deadline.aborted) {
+          await delay(300 * (attempt + 1), undefined, { signal: deadline });
+          continue;
+        }
+        throw unavailable(saved.status, saved.error.code);
+      }
       if (saved.data === true) return result;
       if (saved.data !== false) throw AppError.create('voice_limit_unavailable');
     }

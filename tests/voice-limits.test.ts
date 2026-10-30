@@ -331,6 +331,36 @@ it('retries only a lost compare-and-swap and never overwrites another worker lea
   expect(writes).toBe(1);
 });
 
+it('tolerates a transient Supabase read failure but still fails closed on persistent or permission failures', async () => {
+  for (const [status, failures, expectedCalls] of [
+    [503, 1, 3],
+    [503, 3, 3],
+    [403, 1, 1],
+  ] as const) {
+    let count = 0;
+    const client = createClient('https://example.supabase.co', 'fixture-service-key', {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: async (url) => {
+          count++;
+          if (count <= failures)
+            return Response.json(
+              { code: status === 403 ? '42501' : 'PGRST002', message: 'Fixture storage failure.' },
+              { status },
+            );
+          return Response.json(String(url).includes('/rpc/') ? true : null);
+        },
+      },
+    });
+    const change = new VoiceLimitRepository(client).change('a'.repeat(64), (state) => {
+      state.blockedUntil = 100;
+    });
+    if (status === 503 && failures === 1) await expect(change).resolves.toBeUndefined();
+    else await expect(change).rejects.toMatchObject({ code: 'voice_limit_unavailable' });
+    expect(count).toBe(expectedCalls);
+  }
+});
+
 it.skipIf(!process.env.EARRR_TEST_POSTGRES_URL)(
   'enforces compare-and-swap and service-only access in isolated PostgreSQL',
   async () => {

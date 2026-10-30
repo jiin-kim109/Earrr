@@ -43,7 +43,7 @@ const diagramNotes = (diagram: MusicalDiagram) =>
 
 describe('opening chapter baselines', () => {
   it.each([
-    ['pitch-direction', '1168380822f1b0966aacf3fabeff1f0c09e123c0b1dd108e6312da1794bbf873'],
+    ['pitch-direction', '7ee9cdd1b94581ae4d8a654ffd370c097e8b213e306baf69ecfe6f02d8b11395'],
     ['intervals-foundation', 'ae4db2b964c12bc997f7c5811d9c4780a655049d5908edc8b799ff3dfc5e64fd'],
     ['intervals-harmonic', '35bf07c487ea9f70caaca809a0a8dd520e112271e212a87c39d641634a38f32a'],
   ] satisfies Array<[SkillId, string]>)(
@@ -68,6 +68,13 @@ describe('opening chapter baselines', () => {
         expect(new Set(data.round.map((target) => target.interval))).toEqual(
           new Set([3, 4, 7, 12]),
         );
+      } else {
+        expect(data.steps).toEqual([]);
+        expect(
+          data.exercises.every((exercise) =>
+            exercise.prompt.startsWith('Pitch is how high or low'),
+          ),
+        ).toBe(true);
       }
       for (const exercise of data.exercises) {
         expect(publicExercise(exercise)).not.toHaveProperty('question');

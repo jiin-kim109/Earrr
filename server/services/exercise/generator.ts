@@ -5,6 +5,7 @@ import {
   scalePools,
   functionPools,
   isInversionLesson,
+  popProgressions,
 } from './catalog.js';
 import { cadence } from './lessons.js';
 import {
@@ -121,10 +122,14 @@ export function createExercise(options: {
       ? (target.inversion ?? Math.floor(random() * definition.intervals.length))
       : 0;
     const comparison = target.format === 'compare';
-    const open =
-      !comparison && getSkill(skillId).difficulty >= 4 && !inversionTask && random() < 0.5;
-    const notes = chordNotes(rootMidi, quality, inversion, open);
     const rootTask = skillId === 'chord-roots';
+    const open =
+      !comparison &&
+      !rootTask &&
+      getSkill(skillId).difficulty >= 4 &&
+      !inversionTask &&
+      random() < 0.5;
+    const notes = chordNotes(rootMidi, quality, inversion, open);
     const suppliedRoot = !['triads', 'seventh-chords', 'chord-roots'].includes(skillId);
     exercise.required = rootTask
       ? ['root', 'quality']
@@ -216,7 +221,8 @@ export function createExercise(options: {
       const second = rootMidi + (direction === 'down' ? -distance : distance);
       Object.assign(exercise, {
         kind: 'direction',
-        prompt: 'Does the second note move up or down?',
+        prompt:
+          'Pitch is how high or low a note sounds, not its loudness. Does the second note move up or down?',
         expected: { direction },
         required: ['direction'],
         label: `Moving ${direction}`,
@@ -420,6 +426,8 @@ export function createExercise(options: {
               path.length === length - 1 ? [1, 5].includes(degree) : [2, 4, 5, 6].includes(degree),
             ).map((degree) => [...path, degree]),
           );
+        if (skillId === 'progressions')
+          paths.push(...popProgressions.map((sequence) => [...sequence]));
         if (target.degree !== undefined) paths = paths.filter((path) => path[1] === target.degree);
         progression = choose(random, paths);
       } else {

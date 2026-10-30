@@ -5,9 +5,29 @@ import { describe, expect, it } from 'vitest';
 import { Store } from '../server/db/database.js';
 import { AgentService } from '../server/services/agent/agent.service.js';
 import { exportLearning, importLearning } from '../server/services/storage/archive.js';
-import { settingsSchema } from '../shared/schemas/user.js';
+import { settingsSchema, voiceSpeeds } from '../shared/schemas/user.js';
 
 describe('one speaker volume and two sampled instruments', () => {
+  it('defaults legacy saves to the centered speech speed and preserves a chosen discrete speed in archives', async () => {
+    const source = await Store.open(':memory:');
+    const restored = await Store.open(':memory:');
+    try {
+      const { voiceSpeed: _voiceSpeed, ...legacy } = await source.user.getSettings();
+      await source.db.prepare('UPDATE settings SET data=? WHERE id=1').run(JSON.stringify(legacy));
+      expect((await source.user.getSettings()).voiceSpeed).toBe(1.2);
+      for (const voiceSpeed of voiceSpeeds) {
+        await source.user.saveSettings({ ...legacy, voiceSpeed });
+        await importLearning(restored, await exportLearning(source));
+        expect((await restored.user.getSettings()).voiceSpeed).toBe(voiceSpeed);
+      }
+      for (const voiceSpeed of [0.2, 1.1, 2, 'fast'])
+        expect(settingsSchema.safeParse({ ...legacy, voiceSpeed }).success).toBe(false);
+    } finally {
+      await source.close();
+      await restored.close();
+    }
+  });
+
   it('rejects removed sound options and preserves zero as a master volume', async () => {
     const store = await Store.open(':memory:');
     try {
@@ -15,6 +35,7 @@ describe('one speaker volume and two sampled instruments', () => {
         'instrument',
         'timezone',
         'voice',
+        'voiceSpeed',
         'volume',
       ]);
       for (const instrument of ['sine', 'felt', 'electric'])
@@ -168,6 +189,7 @@ describe('one speaker volume and two sampled instruments', () => {
         instrument: 'piano',
         volume: 0.45,
         voice: 'sage',
+        voiceSpeed: 1.2,
         timezone: 'UTC',
       });
       expect((await agent.snapshot()).current?.id).toBe(result.snapshot.current?.id);

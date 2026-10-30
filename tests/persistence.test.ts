@@ -31,14 +31,15 @@ describe('durable progress and atomic answers', () => {
         const exercise = (await store.exercises.get(first.snapshot.current!.id))!;
         await call('submit_answer', { exerciseId: exercise.id, answer: exercise.expected });
         const pending = await call('play_exercise');
-        const introduction = await call('teach_lesson', { restart: true });
-        const presentationId = introduction.teaching!.presentationId;
+        const presentationId = randomUUID();
         const session = (await store.sessions.get(sessionId))!;
         await store.sessions.save({
           ...session,
           status: 'paused',
+          phase: 'teaching',
           teaching: {
-            ...session.teaching!,
+            lessonId: 'pitch-direction',
+            presentationId,
             index,
             lastDemoIndex: 3,
             delivered: true,
@@ -57,17 +58,9 @@ describe('durable progress and atomic answers', () => {
         expect(snapshot.session).toMatchObject({
           id: sessionId,
           status: 'paused',
-          phase: 'teaching',
+          phase: 'practice',
         });
-        expect(snapshot.teaching).toMatchObject({
-          stepId: 'ready-for-practice',
-          index: 3,
-          awaitingPractice: true,
-          delivered: false,
-          autoContinue: false,
-          lastDemoId: 'down',
-        });
-        expect(snapshot.teaching?.presentationId).not.toBe(presentationId);
+        expect(snapshot.teaching).toBeNull();
         expect(await restored.exercises.teachingDelivered(sessionId, presentationId)).toBe(false);
         expect(snapshot.current?.id).toBe(pending.snapshot.current!.id);
         expect(await store.attempts.recent()).toEqual(attempts);
@@ -75,12 +68,9 @@ describe('durable progress and atomic answers', () => {
         expect(
           await store.db.prepare('SELECT * FROM lesson_completions ORDER BY skill_id').all(),
         ).toEqual(completions);
-        const updatedId = snapshot.teaching!.presentationId;
         await store.close();
         store = await Store.open(path);
-        expect(
-          (await (await Game.create(store, true, 'test')).snapshot()).teaching?.presentationId,
-        ).toBe(updatedId);
+        expect((await (await Game.create(store, true, 'test')).snapshot()).teaching).toBeNull();
       } finally {
         await store.close();
         rmSync(directory, { recursive: true, force: true });
@@ -263,7 +253,7 @@ describe('durable progress and atomic answers', () => {
         await game.execute({
           callId: randomUUID(),
           name: 'start_session',
-          arguments: { mode: 'coach' },
+          arguments: { mode: 'coach', focus: 'intervals-foundation' },
         })
       ).snapshot.session!.id;
       const played = await game.execute({
@@ -296,14 +286,14 @@ describe('durable progress and atomic answers', () => {
         callId: randomUUID(),
         sessionId,
         name: 'teach_lesson',
-        arguments: { stepId: 'up' },
+        arguments: { stepId: 'minor-third' },
       });
       const id = demonstration.teaching!.presentationId;
       await store.close();
       store = await Store.open(path);
       const restored = await (await Game.create(store, true, 'test')).snapshot();
       expect(restored.teaching?.presentationId).toBe(id);
-      expect(restored.teaching?.stepId).toBe('up');
+      expect(restored.teaching?.stepId).toBe('minor-third');
       expect(restored.current?.id).toBe(played.snapshot.current!.id);
     } finally {
       await store.close();

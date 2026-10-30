@@ -11,6 +11,7 @@ import type { Exercise, ExerciseTarget } from '../../server/types/exercise.types
 import type { SkillId } from '../../shared/types/course.js';
 import type { ToolResult } from '../../server/types/agent.types.js';
 import { controlledCoachScript } from '../browser-coach.js';
+import { audioEvidenceScript } from '../browser-audio.js';
 
 type Engine = { store: Store; game: Awaited<ReturnType<typeof createApp>>['game'] };
 const test = base.extend<{ engine: Engine }>({
@@ -108,7 +109,6 @@ const scenarios: Array<{
   diagram: string;
   answer: (exercise: Exercise) => string;
 }> = [
-  { skill: 'scale-degrees', target: { degree: 3 }, diagram: 'piano', answer: () => 'mi' },
   { skill: 'major-functions', target: { degree: 4 }, diagram: 'progression', answer: () => 'IV' },
   {
     skill: 'scales',
@@ -234,6 +234,9 @@ for (const width of [1440, 390, 320]) {
             ),
           ].sort((a, b) => a - b),
         );
+      } else if (scenario.diagram === 'progression') {
+        await expect(diagram.getByTestId('music-notation')).toHaveCount(0);
+        await expect(diagram.locator('[data-question-position]')).not.toHaveCount(0);
       } else if (width > 320) {
         await expect(diagram.getByTestId('music-notation').locator('svg')).toBeVisible();
         expect(await page.evaluate(() => document.fonts.check('40px Bravura'))).toBe(true);
@@ -314,7 +317,8 @@ test('later tutorials share the same meaningful display while core inversions re
     'progression',
   );
   await expect(player(page).getByTestId('piano-diagram')).toHaveCount(0);
-  await expect(player(page).getByTestId('music-notation').locator('svg')).toBeVisible();
+  await expect(player(page).getByTestId('music-notation')).toHaveCount(0);
+  await expect(player(page).locator('[data-question-position]')).toHaveCount(4);
   expect((await engine.game.snapshot()).totalAnswers).toBe(0);
   await engine.game.execute({
     callId: randomUUID(),
@@ -410,7 +414,7 @@ for (const viewport of [
     const collapsed = outline.getByRole('button', { expanded: false });
     while (await collapsed.count()) await collapsed.first().click();
     const marks = outline.getByTestId('lesson-status');
-    await expect(marks).toHaveCount(29);
+    await expect(marks).toHaveCount(27);
     await expect(marks.locator('svg')).toHaveCount(0);
     await expect(outline.getByRole('button', { name: /locked/i })).toHaveCount(0);
     await expect(outline.getByTestId('ear-companion')).toHaveAttribute('data-tier', '0');
@@ -512,4 +516,171 @@ test.describe('short touch-screen round result', () => {
     await expect(player(page).getByTestId('musical-diagram')).toHaveCount(0);
     await expect(player(page).locator('[data-outcome="unanswered"]')).toHaveCount(10);
   });
+});
+
+test('rapid progression replays keep one audio plan at the same loudness and a later lesson wins', async ({
+  page,
+  engine,
+}) => {
+  test.setTimeout(60_000);
+  const exercise = await pendingQuestion(engine, 'progressions', { length: 4, format: 'complete' });
+  await page.addInitScript({ content: audioEvidenceScript });
+  const failures: string[] = [];
+  page.on('pageerror', (error) => failures.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start training', exact: true }).click();
+  await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  const firstPeak = await page.evaluate(() => Reflect.get(window, 'earrrAudioEvidence').pianoPeak);
+  expect(firstPeak).toBeGreaterThan(0.01);
+  await page.evaluate(() => {
+    Reflect.get(window, 'earrrAudioEvidence').pianoPeak = 0;
+  });
+  const replay = page.getByRole('button', { name: 'Hear again', exact: true });
+  await replay.evaluate((button) => {
+    for (let count = 0; count < 12; count++) (button as HTMLButtonElement).click();
+  });
+  await expect(player(page)).toHaveAttribute('data-phase', 'playing');
+  await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  const repeatedPeak = await page.evaluate(
+    () => Reflect.get(window, 'earrrAudioEvidence').pianoPeak,
+  );
+  expect(repeatedPeak).toBeLessThanOrEqual(firstPeak * 1.15 + 0.02);
+  expect((await engine.game.snapshot()).current?.id).toBe(exercise.id);
+  expect((await engine.game.snapshot()).settings.volume).toBe(0.8);
+  const voices = (await page.evaluate(
+    () => Reflect.get(window, 'earrrAudioEvidence').sampleVoices,
+  )) as Array<{ start: number; stop: number }>;
+  const maxSimultaneous = Math.max(
+    ...voices.map(
+      (voice) =>
+        voices.filter((other) => other.start <= voice.start && other.stop > voice.start).length,
+    ),
+  );
+  const plannedVoices = Math.max(
+    ...exercise.audio.events.map(
+      (note) =>
+        exercise.audio.events.filter(
+          (other) => other.at <= note.at && other.at + other.duration + 0.32 > note.at,
+        ).length,
+    ),
+  );
+  expect(maxSimultaneous).toBeLessThanOrEqual(plannedVoices + 1);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/tools', async (route) => {
+    if (route.request().postDataJSON().name === 'replay_exercise') await held;
+    await route.fallback();
+  });
+  await replay.click();
+  await page.getByRole('button', { name: /^Pitch direction/ }).click();
+  await page.getByRole('button', { name: 'Complete the progression', exact: true }).click();
+  release();
+  await expect(player(page)).toHaveAttribute('data-phase', 'playing');
+  await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  expect((await engine.game.snapshot()).course.selectedLesson).toBe('progressions');
+  expect((await engine.game.snapshot()).current?.id).toBe(exercise.id);
+  await page.getByRole('button', { name: /^Pitch direction/ }).click();
+  await expect(page.getByTestId('lesson-toolbar')).toHaveText('Pitch direction');
+  await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  expect((await engine.game.snapshot()).course.selectedLesson).toBe('pitch-direction');
+  expect((await engine.game.snapshot()).totalAnswers).toBe(0);
+  await expect(page.getByTestId('fatal-toast')).toHaveCount(0);
+  expect(failures).toEqual([]);
+});
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 768, height: 900 },
+  { width: 320, height: 568 },
+]) {
+  test(`persists the five-step tutor speed with the original speed centered at ${viewport.width}`, async ({
+    page,
+    engine,
+  }) => {
+    await page.setViewportSize(viewport);
+    await pendingQuestion(engine, 'pitch-direction', { direction: 'up' });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Start training', exact: true }).click();
+    await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
+    const popup = page.getByRole('dialog', { name: 'Audio settings', exact: true });
+    const speed = popup.getByRole('slider', { name: 'Tutor speed', exact: true });
+    await expect(speed).toHaveAttribute('aria-valuenow', '2');
+    await expect(speed).toHaveAttribute('aria-valuetext', 'Default, 1.2 times speed');
+    await speed.focus();
+    await page.keyboard.press('End');
+    await expect.poll(async () => (await engine.store.user.getSettings()).voiceSpeed).toBe(1.5);
+    await page.keyboard.press('ArrowLeft');
+    await expect(speed).toHaveAttribute('aria-valuenow', '3');
+    await expect.poll(async () => (await engine.store.user.getSettings()).voiceSpeed).toBe(1.35);
+    expect((await engine.game.snapshot()).settings.volume).toBe(0.8);
+    await page.screenshot({
+      path: join('test-results', `tutor-speed-${viewport.width}.png`),
+      animations: 'disabled',
+      fullPage: true,
+    });
+    expect(
+      (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+        .violations,
+    ).toEqual([]);
+    await page.reload();
+    await page.getByRole('button', { name: 'Start training', exact: true }).click();
+    await page.getByRole('button', { name: 'Audio settings', exact: true }).click();
+    await expect(page.getByRole('slider', { name: 'Tutor speed', exact: true })).toHaveAttribute(
+      'aria-valuenow',
+      '3',
+    );
+  });
+}
+
+test('starts a new visible conversation on every lesson visit while retaining model history', async ({
+  page,
+  engine,
+}) => {
+  await page.addInitScript({ content: controlledCoachScript });
+  const started = await engine.game.execute({
+    callId: randomUUID(),
+    name: 'start_session',
+    arguments: { mode: 'coach', focus: 'pitch-direction' },
+  });
+  await engine.game.execute({
+    callId: randomUUID(),
+    sessionId: started.snapshot.session!.id,
+    name: 'start_practice',
+    arguments: {},
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start training', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').ready()))
+    .toBe(true);
+  await page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').tool('inspect_progress', {}));
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'earrrCoachFixture').ready()))
+    .toBe(true);
+  const marker = 'This explanation belongs to the first pitch lesson visit.';
+  await page.evaluate((text) => Reflect.get(window, 'earrrCoachFixture').reply(text), marker);
+  await expect(page.getByText(marker, { exact: true })).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await engine.game.snapshot()).transcript.some((message) => message.text === marker),
+    )
+    .toBe(true);
+  const outline = page.getByRole('navigation', { name: 'Chapters and lessons' });
+  await outline.getByRole('button', { name: /Chord colors/ }).click();
+  await outline.getByRole('button', { name: 'Major & minor', exact: true }).click();
+  await expect(page.getByTestId('lesson-toolbar')).toHaveText('Major & minor');
+  await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
+  await outline.getByRole('button', { name: /^Pitch direction/ }).click();
+  await expect(page.getByTestId('lesson-toolbar')).toHaveText('Pitch direction');
+  await expect(player(page)).toHaveAttribute('data-phase', 'listening');
+  await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
+  await page.reload();
+  await page.getByRole('button', { name: 'Start training', exact: true }).click();
+  await expect(page.getByText(marker, { exact: true })).toHaveCount(0);
+  expect((await engine.game.snapshot()).transcript.some((message) => message.text === marker)).toBe(
+    true,
+  );
+  expect((await engine.game.snapshot()).totalAnswers).toBe(0);
 });

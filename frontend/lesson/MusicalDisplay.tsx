@@ -4,6 +4,8 @@ import { PianoDiagram } from '@/instruments/PianoDiagram';
 import { studio } from '@/studio/studio';
 import { MusicNotation } from './MusicNotation.js';
 import type { ScoreFrame } from './MusicNotation.js';
+import { ChevronRight } from 'lucide-react';
+import { cn } from 'cn';
 
 function subscribeShortDisplay(update: () => void) {
   window.addEventListener('resize', update);
@@ -50,18 +52,43 @@ function SymbolPiano({
   );
 }
 
-function ChordStrip({ frames }: { frames: Array<ScoreFrame | null> }) {
+function ChordStrip({
+  frames,
+  active = -1,
+}: {
+  frames: Array<ScoreFrame | null>;
+  active?: number;
+}) {
   return (
-    <div className="flex size-full items-center justify-evenly gap-2">
+    <div className="flex size-full items-center justify-center gap-1 sm:gap-3">
       {frames.map((frame, index) => (
         <div
           key={index}
-          className={`min-w-0 text-center ${frame?.highlighted ? 'text-brand' : 'text-foreground'}`}
+          data-question-position={index}
+          data-masked={!frame}
+          data-active={active === index}
+          className="relative min-w-0 flex-1 text-center"
         >
-          <p className="text-base leading-tight font-medium">{frame?.symbol ?? '?'}</p>
-          {frame?.function && (
-            <p className="mt-1 text-[11px] text-muted-foreground">{frame.function}</p>
+          {index > 0 && (
+            <ChevronRight
+              aria-hidden="true"
+              className="absolute top-1/2 -left-2 size-3 -translate-y-1/2 text-muted-foreground/50 sm:-left-3"
+            />
           )}
+          <div
+            className={cn(
+              'mx-auto flex min-h-20 max-w-24 flex-col items-center justify-center gap-1.5 rounded-xl border px-1 py-3 transition-colors duration-150 motion-reduce:transition-none',
+              frame ? 'border-transparent' : 'border-dashed border-brand/35 text-brand',
+              (active === index || frame?.highlighted) && 'bg-brand/8 text-brand',
+            )}
+          >
+            <p className="text-xl leading-tight font-medium tracking-tight sm:text-2xl">
+              {frame?.symbol ?? '?'}
+            </p>
+            <p className="min-h-4 text-xs leading-4 text-muted-foreground">
+              {frame?.function ?? (frame ? '' : 'Missing')}
+            </p>
+          </div>
         </div>
       ))}
     </div>
@@ -115,12 +142,10 @@ export function MusicalDisplay({
       data-example-id={exampleId}
       className="h-full w-full max-w-[450px]"
     >
-      {dense ? (
-        diagram.kind === 'progression' ? (
-          <ChordStrip frames={frames} />
-        ) : (
-          <PianoDiagram example={example} exampleId={exampleId} />
-        )
+      {diagram.kind === 'progression' ? (
+        <ChordStrip frames={frames} />
+      ) : dense ? (
+        <PianoDiagram example={example} exampleId={exampleId} />
       ) : (
         <MusicNotation
           frames={frames}
@@ -224,26 +249,18 @@ export function QuestionGraphic({
             <p className="text-3xl font-medium text-brand">?</p>
           </div>
         </div>
-      ) : score?.some((frame) => frame && frame.notes.length > 0) && !dense ? (
-        <div className="min-h-0 flex-1">
-          <MusicNotation
-            frames={score}
-            label={`${question.tonic}. ${question.instruction}. ${question.labels.map((label) => label ?? 'missing').join(', ')}`}
-          />
-        </div>
       ) : (
-        <div className="flex justify-evenly gap-2">
-          {question.labels.map((label, index) => (
-            <div
-              key={index}
-              data-question-position={index}
-              data-masked={label === null}
-              data-active={playing && active === index}
-              className={`rounded-xl border px-3 py-2 text-center text-xl ${label === null ? 'border-dashed border-brand/40 text-brand' : 'border-border'} ${playing && active === index ? 'bg-brand/8' : ''}`}
-            >
-              {label ?? '?'}
-            </div>
-          ))}
+        <div
+          className={cn('min-h-0 flex-1', dense && '[&>div>div>div]:min-h-14')}
+          role="img"
+          aria-label={`${question.tonic}. ${question.instruction}. ${question.labels.map((label) => label ?? 'missing').join(', ')}`}
+        >
+          <ChordStrip
+            frames={
+              score ?? question.labels.map((symbol) => (symbol ? { symbol, notes: [] } : null))
+            }
+            active={playing ? active : -1}
+          />
         </div>
       )}
     </div>

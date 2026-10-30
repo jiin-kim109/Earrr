@@ -9,6 +9,56 @@ import { Slider } from '@/components/ui/slider';
 import { InstrumentPicker } from '@/instruments/InstrumentPicker';
 import { studio, useStudio } from '@/studio/studio';
 import { AudioNotice } from './AudioNotice.js';
+import { voiceSpeeds, defaultVoiceSpeed } from '../../shared/schemas/user.js';
+
+const speedLabels = ['Slower', 'Relaxed', 'Default', 'Quick', 'Faster'];
+
+function VoiceSpeedSettings() {
+  const speed = useStudio((state) => state.snapshot?.settings.voiceSpeed ?? defaultVoiceSpeed);
+  const index = Math.max(0, voiceSpeeds.indexOf(speed));
+  const id = useId();
+  return (
+    <section aria-labelledby={id} className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 id={id} className="text-sm font-medium">
+          Tutor speed
+        </h2>
+        <span className="text-xs text-muted-foreground">{speedLabels[index]}</span>
+      </div>
+      <div className="relative py-1">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-2 top-[calc(100%+0.125rem)] flex justify-between"
+        >
+          {voiceSpeeds.map((value) => (
+            <span key={value} className="h-1 w-px bg-muted-foreground/65" />
+          ))}
+        </div>
+        <Slider
+          aria-labelledby={id}
+          aria-valuetext={`${speedLabels[index]}, ${speed} times speed`}
+          min={0}
+          max={voiceSpeeds.length - 1}
+          step={1}
+          value={[index]}
+          onValueChange={([value]) => {
+            const voiceSpeed = voiceSpeeds[value ?? -1];
+            if (voiceSpeed !== undefined) void studio.updateSettings({ voiceSpeed });
+          }}
+          className="[&_[data-slot=slider-thumb]]:relative [&_[data-slot=slider-thumb]]:z-20"
+        />
+      </div>
+      <div
+        aria-hidden="true"
+        className="flex justify-between px-1 text-[11px] text-muted-foreground"
+      >
+        <span>Slower</span>
+        <span>Default</span>
+        <span>Faster</span>
+      </div>
+    </section>
+  );
+}
 
 export function SpeakerSettings({
   volume,
@@ -122,6 +172,7 @@ export function AudioSettings() {
         className="scrollbar-thin scrollbar-thumb-muted-foreground/60 scrollbar-track-transparent max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-1.5rem)] space-y-4 overflow-y-auto rounded-2xl p-5"
       >
         <SpeakerSettings volume={volume} scrollable />
+        <VoiceSpeedSettings />
         <AudioNotice surface="lesson" />
         <InstrumentPicker instrument={settings.instrument} badge />
       </PopoverContent>

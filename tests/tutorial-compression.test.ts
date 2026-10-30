@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { teachingSteps } from '../server/services/exercise/lessons.js';
 import { normalizeTeachingProgress } from '../server/services/exercise/teaching-progress.js';
-import { skills } from '../server/services/exercise/catalog.js';
+import { skills, hasTutorial } from '../server/services/exercise/catalog.js';
 import { describePlayedExample } from '../server/services/exercise/exercise.service.js';
 import type { SkillId } from '../shared/types/course.js';
 import { Store } from '../server/db/database.js';
@@ -11,7 +11,7 @@ import { agentInstructions } from '../server/services/agent/presentation.js';
 
 describe('concise tutorials with stable saved positions', () => {
   it('keeps overviews concise and preserves every unique core explanation', () => {
-    for (const skill of skills) {
+    for (const skill of skills.filter((skill) => hasTutorial(skill.id))) {
       const steps = teachingSteps(skill.id, 'piano');
       expect(steps[0]!.narration.split(/\s+/).length, skill.id).toBeLessThanOrEqual(35);
       expect(steps.at(-1)!.id).toBe('ready-for-practice');

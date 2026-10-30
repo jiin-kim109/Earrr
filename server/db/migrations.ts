@@ -1,5 +1,5 @@
 import type { Database } from './database.js';
-import { skills } from '../services/exercise/catalog.js';
+import { skills, hasTutorial } from '../services/exercise/catalog.js';
 import { ProgressService } from '../services/progress.service.js';
 import { newTeachingProgress } from '../services/exercise/exercise.service.js';
 import type { Store } from './database.js';
@@ -73,7 +73,7 @@ export async function initializeSchema(db: Database): Promise<number> {
       id TEXT PRIMARY KEY,
       exercise_id TEXT NOT NULL REFERENCES exercises(id)
     );
-    CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id = 1), skill_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 3);
+    CREATE TABLE IF NOT EXISTS course (id INTEGER PRIMARY KEY CHECK(id = 1), skill_id TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 4);
     CREATE TABLE IF NOT EXISTS lesson_completions (skill_id TEXT PRIMARY KEY, completed_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lesson_introductions (
       skill_id TEXT PRIMARY KEY,
@@ -180,7 +180,8 @@ export async function migrateLegacyData(store: Store, version: number, now: () =
     await store.transaction(async () => {
       const session = await store.sessions.active();
       if (session && session.phase === undefined) {
-        const teaching = session.mode === 'coach';
+        const teaching =
+          session.mode === 'coach' && hasTutorial(await store.progress.selectedLesson());
         await store.sessions.save({
           ...session,
           phase: teaching ? 'teaching' : 'practice',
@@ -211,19 +212,8 @@ export async function migrateLegacyData(store: Store, version: number, now: () =
     await store.transaction(async () => {
       const session = await store.sessions.active();
       const teaching = session?.teaching;
-      if (session && teaching?.lessonId === 'pitch-direction') {
-        // The retired unison was step 3; the old final invitation was step 4.
-        const lastDemoIndex = teaching.lastDemoIndex === 3 ? 2 : teaching.lastDemoIndex;
-        const retiredStep = teaching.index === 3 || teaching.index === 4;
-        if (retiredStep || lastDemoIndex !== teaching.lastDemoIndex) {
-          await store.sessions.save({
-            ...session,
-            teaching: retiredStep
-              ? newTeachingProgress('pitch-direction', 3, lastDemoIndex, false)
-              : { ...teaching, lastDemoIndex },
-          });
-        }
-      }
+      if (session && teaching?.lessonId === 'pitch-direction' && teaching.section !== 'welcome')
+        await store.sessions.save({ ...session, phase: 'practice', teaching: null });
       await store.db.exec('PRAGMA user_version = 7');
     });
   }

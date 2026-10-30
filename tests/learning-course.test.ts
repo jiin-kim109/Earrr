@@ -22,21 +22,48 @@ import { exportLearning, importLearning } from '../server/services/storage/archi
 import { presentationInstructions } from '../server/services/agent/presentation.js';
 
 describe('manageable learning progression', () => {
+  it('adds two taught pop loops to progression generation without exposing missing chords', () => {
+    const demos = teachingSteps('progressions', 'piano');
+    expect(demos.filter((step) => step.audio)).toHaveLength(4);
+    expect(demos.find((step) => step.id === 'progression-1-5-6-4')?.narration).toContain(
+      'With or Without You',
+    );
+    expect(demos.find((step) => step.id === 'progression-6-4-1-5')?.narration).toContain(
+      'The Spectre',
+    );
+    const sequences = new Set<string>();
+    for (let seed = 0; seed < 300; seed++) {
+      const exercise = createExercise({
+        id: randomUUID(),
+        seed,
+        skillId: 'progressions',
+        settings: defaultSettings,
+        now: '',
+        target: { length: 4, format: 'complete', gapCount: 2 },
+      });
+      sequences.add(exercise.expected.progression!.join(','));
+      const question = publicExercise(exercise).question;
+      if (question?.kind !== 'sequence') throw new Error('No progression sequence.');
+      expect(question.labels.slice(1, -1)).toEqual([null, null]);
+    }
+    expect(sequences).toContain('1,5,6,4');
+    expect(sequences).toContain('6,4,1,5');
+  });
+
   it('has small answer sets and teaches functions before guided progressions', () => {
-    expect(skills).toHaveLength(29);
+    expect(skills).toHaveLength(27);
     expect(chapters.map((chapter) => chapter.name)).toEqual([
-      'Pitch & intervals',
+      'Pitch direction',
+      'Intervals',
       'Chord colors',
       'Scales & modes',
-      'Roots & inversions',
       'Seventh chords',
-      'Chord progressions',
-      'Seventh inversions',
+      'Inversions',
       'Added tones & extensions',
+      'Chord progressions',
       'Altered dominants',
     ]);
     expect(skills.filter((skill) => skill.chapter === 1).map((skill) => skill.id)).toEqual([
-      'pitch-direction',
       'intervals-foundation',
       'intervals-harmonic',
     ]);
@@ -45,6 +72,8 @@ describe('manageable learning progression', () => {
       'intervals-chromatic',
       'melodies',
       'jazz-progressions',
+      'scale-degrees',
+      'chord-roots',
     ])
       expect(skills.some((skill) => skill.id === retired)).toBe(false);
     for (const skill of skills) {
@@ -188,7 +217,7 @@ describe('manageable learning progression', () => {
       expect(state.course.selectedLesson).toBe('intervals-harmonic');
       expect(state.course.completedLessons).toBe(1);
       expect(state.totalAnswers).toBe(0);
-      expect((await restored.db.prepare('SELECT revision FROM course').get())?.revision).toBe(3);
+      expect((await restored.db.prepare('SELECT revision FROM course').get())?.revision).toBe(4);
       await game.restoreCheckpoint();
       expect((await game.snapshot()).course).toEqual(state.course);
     } finally {

@@ -8,6 +8,7 @@ export interface ResponseRequest {
   section?: number;
   tools: 'auto' | 'none' | 'play_exercise';
   presentation?: Presentation;
+  voiceSpeed?: number;
 }
 
 const itemSchema = z
@@ -73,6 +74,7 @@ export class RealtimeConnection {
   private opened = false;
   private microphoneDeviceId = '';
   private microphoneRequest = 0;
+  private voiceSpeed: number | undefined;
 
   constructor(private readonly handlers: Handlers) {}
 
@@ -298,6 +300,13 @@ export class RealtimeConnection {
     this.send({ type: 'conversation.item.delete', item_id: itemId });
   }
   respond(request: ResponseRequest) {
+    if (request.voiceSpeed !== undefined && request.voiceSpeed !== this.voiceSpeed) {
+      this.send({
+        type: 'session.update',
+        session: { type: 'realtime', audio: { output: { speed: request.voiceSpeed } } },
+      });
+      this.voiceSpeed = request.voiceSpeed;
+    }
     const presentation = request.presentation?.instructions ? request.presentation : undefined;
     this.send({
       type: 'response.create',
@@ -357,5 +366,6 @@ export class RealtimeConnection {
     this.sender = null;
     this.handlers.microphone(null);
     this.opened = false;
+    this.voiceSpeed = undefined;
   }
 }

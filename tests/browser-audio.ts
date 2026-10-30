@@ -33,6 +33,7 @@ export const audioEvidenceScript = `(() => {
           evidence.samples++;
           record = { playbackRate: source.playbackRate.value, start: args[0] ?? this.currentTime, stop: Infinity };
           evidence.sampleVoices.push(record);
+          source.addEventListener('ended', () => { record.stop = Math.min(record.stop, this.currentTime); }, { once: true });
         }
         return start(...args);
       };

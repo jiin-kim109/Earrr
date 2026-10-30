@@ -109,6 +109,46 @@ afterEach(() => {
 });
 
 describe('audio-clock scheduling and cancellation', () => {
+  it('settles when playback is stopped synchronously by its start callback', async () => {
+    vi.stubGlobal('AudioContext', Context);
+    const engine = new AudioEngine();
+    let result: boolean | undefined;
+    const playing = engine
+      .play(plan, () => engine.stop())
+      .then((value) => {
+        result = value;
+      });
+    Context.current.finishResume();
+    await vi.waitFor(() => expect(result).toBe(false), { timeout: 500 });
+    await playing;
+    expect(engine.playbackTime()).toBeNull();
+  });
+
+  it('ignores a failed sample load after that playback was superseded', async () => {
+    vi.stubGlobal('AudioContext', Context);
+    let reject!: (error: Error) => void;
+    vi.mocked(SampleBank.prototype.prepare).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    const engine = new AudioEngine();
+    const first = engine.play(plan);
+    const outcome = first.then(
+      (value) => value,
+      (error: unknown) => error,
+    );
+    Context.current.finishResume();
+    await vi.waitFor(() => expect(reject).toBeDefined());
+    const latest = engine.play(plan);
+    await vi.waitFor(() => expect(Context.current.sources).toHaveLength(2));
+    reject(new Error('Old sample load failed.'));
+    await expect(outcome).resolves.toBe(false);
+    engine.stop();
+    await expect(latest).resolves.toBe(false);
+  });
+
   it('reports the actual scheduled music clock and clears it after completion or interruption', async () => {
     vi.stubGlobal('AudioContext', Context);
     const engine = new AudioEngine();
@@ -272,6 +312,32 @@ describe('audio-clock scheduling and cancellation', () => {
       engine.detachVoice();
       expect(player.pause).toHaveBeenCalled();
       expect(player.srcObject).toBeNull();
+    });
+
+    it('keeps tutor and instrument on the last chosen speaker when sink changes resolve out of order', async () => {
+      const player = new Player();
+      vi.stubGlobal('AudioContext', Context);
+      vi.stubGlobal('HTMLMediaElement', Player);
+      vi.stubGlobal('document', { createElement: () => player, body: { appendChild: vi.fn() } });
+      const engine = new AudioEngine();
+      const unlocked = engine.unlock();
+      Context.current.finishResume();
+      await unlocked;
+      let release!: () => void;
+      player.setSinkId.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = () => resolve(undefined);
+          }),
+      );
+      const first = engine.setOutputDevice('first-speaker');
+      await vi.waitFor(() => expect(release).toBeDefined());
+      const last = engine.setOutputDevice('last-speaker');
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      release();
+      await Promise.all([first, last]);
+      expect(player.setSinkId).toHaveBeenLastCalledWith('last-speaker');
+      expect(Context.current.setSinkId).toHaveBeenLastCalledWith('last-speaker');
     });
 
     it('surfaces blocked speech playback instead of presenting silent captions as success', async () => {

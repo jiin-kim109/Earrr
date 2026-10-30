@@ -143,6 +143,57 @@ afterEach(async () => {
 });
 
 describe('causal single-stream turns', () => {
+  it('accepts a provider cancellation before the VAD start event without treating the interruption as a failure', async () => {
+    await tool('play_exercise');
+    const id = created();
+    emit({ type: 'response.output_audio_transcript.delta', response_id: id, delta: 'Listen to' });
+    emit({ type: 'response.done', response: { id, status: 'cancelled' } });
+    emit({ type: 'input_audio_buffer.speech_started', item_id: 'barge-in' });
+    emit({ type: 'input_audio_buffer.committed', item_id: 'barge-in' });
+    expect(messages.find((message) => message.id === `assistant:${id}`)?.delivery).toBe(
+      'interrupted',
+    );
+    expect(after).not.toHaveBeenCalled();
+    expect(errors).toEqual([]);
+    await tool('replay_exercise', {}, false);
+    expect(errors).toEqual([]);
+  });
+
+  it('cancels a response only once when replay and navigation arrive before cancellation completes', async () => {
+    await tool('play_exercise');
+    const response = created();
+    emit({ type: 'output_audio_buffer.started', response_id: response });
+    const first = loop.action('replay_exercise');
+    const second = loop.action('replay_exercise');
+    const last = loop.action('select_lesson', { skillId: 'progressions' });
+    await Promise.all([first, second, last]);
+    expect(sent.filter((event) => event.type === 'response.cancel')).toHaveLength(1);
+    expect(sent.filter((event) => event.type === 'output_audio_buffer.clear')).toHaveLength(1);
+    emit({ type: 'response.done', response: { id: response, status: 'cancelled' } });
+    expect(snapshot.course.selectedLesson).toBe('progressions');
+    expect(execute.mock.calls.map(([name]) => name)).toEqual(['play_exercise', 'select_lesson']);
+    expect(errors).toEqual([]);
+  });
+
+  it('does not report an obsolete action failure after the learner has already chosen another lesson', async () => {
+    await tool('play_exercise');
+    await reply();
+    let reject!: (error: Error) => void;
+    execute.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    const old = loop.action('replay_exercise');
+    await vi.waitFor(() => expect(reject).toBeDefined());
+    const latest = loop.action('select_lesson', { skillId: 'triads' });
+    reject(new Error('Obsolete replay failed.'));
+    await Promise.all([old, latest]);
+    expect(snapshot.course.selectedLesson).toBe('triads');
+    expect(errors).toEqual([]);
+  });
+
   it('navigates to the first tutorial step without presenting a late grading result from the old lesson', async () => {
     for (const id of ['pitch-direction', 'intervals-foundation', 'intervals-harmonic'] as const)
       await store.progress.completeLesson(id, new Date().toISOString());
@@ -393,7 +444,7 @@ describe('causal single-stream turns', () => {
     ['invalid_value', 'An unrelated request parameter is invalid.'],
   ])('continues to report real provider failures: %s', (code, message) => {
     emit({ type: 'error', error: { code, message } });
-    expect(errors).toEqual([message]);
+    expect(errors).toEqual([`Realtime ${code}: ${message}`]);
   });
   it('does not play queued notes after speech was interrupted', async () => {
     await tool('play_exercise');

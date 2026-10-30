@@ -20,7 +20,7 @@ import type {
 import type { Session } from '../../types/session.types.js';
 import type { Attempt, AnswerReview } from '../../types/grading.types.js';
 import { intervalNoteNames, noteName } from './music.js';
-import { chapters, skills, welcome, chordPools } from './catalog.js';
+import { chapters, skills, welcome, chordPools, hasTutorial } from './catalog.js';
 import { checkpointDescription } from '../progress.service.js';
 import { roundRule } from './rounds.js';
 import type { ProgressService } from '../progress.service.js';
@@ -49,6 +49,22 @@ export function newTeachingProgress(
     exampleIndex: 0,
     lastDemoExampleIndex,
     autoContinue,
+  };
+}
+
+export function newWelcomeProgress(lessonId: SkillId): TeachingProgress {
+  return {
+    lessonId,
+    section: 'welcome',
+    index: 0,
+    stepId: 'welcome',
+    presentationId: randomUUID(),
+    delivered: false,
+    lastDemoIndex: null,
+    lastDemoStepId: null,
+    exampleIndex: 0,
+    lastDemoExampleIndex: 0,
+    autoContinue: false,
   };
 }
 
@@ -429,6 +445,7 @@ export class ExerciseService {
       throw AppError.create('coach_required');
     }
     const lessonId = await this.store.progress.selectedLesson();
+    if (!hasTutorial(lessonId)) return this.startPractice(session);
     const steps = await this.steps(lessonId);
     const index = options.stepId
       ? steps.findIndex((step) => step.id === options.stepId)

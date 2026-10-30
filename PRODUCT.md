@@ -80,8 +80,9 @@ without excessive praise. The player is treated as a musician at every level.
     chord/bass work. Keep Skip in the lower action row as a borderless
     icon/text button with a quiet hover fill, not beside the Tutorial label.
     Finish with a readiness invitation and wait. Only an explicit start_practice
-    tool call after agreement or Skip begins exercises. Pitch-direction practice
-    and its demonstrations use only rising and falling notes, not unisons.
+    tool call after agreement or Skip begins exercises. Chapter 00, Pitch direction,
+    is the exception: begin practice directly with one short explanation of pitch.
+    It has no tutorial or tutorial-return button, and uses rising/falling notes only.
 11. Use one realtime conversation for input, tools, native streamed voice, and
     captions. Natural variations in spoken phrasing are acceptable. Do not add
     a second narrator, verbatim-speech verification, or a speech-delivery gate
@@ -235,7 +236,8 @@ without excessive praise. The player is treated as a musician at every level.
 34. Coach as a precise teacher: concise musical explanations and concrete
     feedback, without filler promises, flattery or repeated readiness invitations.
     Never pronounce the app name, which belongs to visual branding.
-35. Include section 00 Welcome before new coached learning. Its visible title is
+35. Include a one-time Welcome before new coached learning, without a sidebar entry.
+    Chapter 00 belongs to Pitch direction. The greeting's visible title is
     Welcome. Briefly introduce the AI coach and the range from basic pitch/intervals
     to advanced chords/harmony, then ask to start ear training and wait for agreement.
     Do not ask to start pitch direction or recite the app name. Welcome is
@@ -250,6 +252,8 @@ without excessive praise. The player is treated as a musician at every level.
     events. Preserve the mutation journal for reload recovery. Routine invalid
     answers, form validation and microphone/speaker permission notices remain local
     and nonfatal. Intentional pause/end does not trigger a failure overlay.
+    Expected response cancellations and obsolete playback completions are not failures.
+    Bound transient quota-storage retries without reconnecting or disabling enforcement.
 37. Keep the browser tab title fixed to Earrr | Ear training game with a friendly
     AI tutor. for every surface, including account screens.
 38. Tutorial dots are an ungated step selector, not mastery or a completion
@@ -269,9 +273,11 @@ without excessive praise. The player is treated as a musician at every level.
 39. Do not re-enable custom SMTP or reuse the retired sender/domain for this
     setup. The user owns provider settings. Keep email-delivery errors honest and
     do not treat generated test codes as proof that an inbox received email.
-40. Save canonical chat with its guest/account learning archive and restore the
-    owner's recent conversation on entry, including across training sessions.
-    Keep complete history in storage and a bounded recent UI/model window.
+40. Save canonical chat with its guest/account learning archive for model context.
+    Start the visible conversation empty on each lesson visit, including a return
+    to an earlier lesson. A tab-local display boundary preserves that visit's
+    messages across refresh without deleting historical chat from storage.
+    Keep complete history in storage and bounded recent UI/model windows.
     Historical dialogue is read-only context, never consent or pending actions.
     Keep checkpoint messages separate from chat; identity changes clear old-owner UI.
 41. Resolve account-button first and last names from the user's own authoritative
@@ -312,7 +318,7 @@ without excessive praise. The player is treated as a musician at every level.
     microphone/default/communications alias. Speaker selection does not request
     microphone access; use a browser-native speaker chooser only if the browser
     supports it and actually denies a requested output device.
-47. Welcome and pitch direction retain their musical content and piano presentation.
+47. Welcome remains a short unscored greeting; pitch direction starts directly in practice.
     The two interval lessons teach and test minor third, major third, perfect fifth
     and octave only; omit perfect fourth from their tutorials, questions and hints.
     Keep ten questions per round, two or three per interval, with the extra pair
@@ -322,10 +328,12 @@ without excessive praise. The player is treated as a musician at every level.
     pitch are retired from the active course. Use small, explicit answer sets
     after major/minor, usually two to four and never more than five new categories.
     Inversion questions supply the chord quality so the learner judges only the
-    bass position. Root naming uses C4 and five nearby roots in the same octave.
-48. Use 29 short lessons across nine chapters: pitch/intervals; chord colors;
-    scales/modes; roots/triad inversions; seventh chords; progressions; seventh
-    inversions; added tones/extensions; altered dominants. Introduce major/minor,
+    bass position. Tonal anchors and Roots & quality are retired from active lessons;
+    their historical answers remain saved.
+48. Use 27 short lessons across nine chapters, numbered 00 through 08: pitch
+    direction; intervals; chord colors; scales/modes; seventh chords; inversions;
+    added tones/extensions; chord progressions; altered dominants.
+    Inversions includes both triad and seventh bass positions. Introduce major/minor,
     then diminished/augmented, then sus4 (five qualities total). Minor scales cover
     natural, harmonic and ascending melodic minor only. Split major-family and
     minor-family modes; omit pentatonic, blues, whole tone and melodic recall.
@@ -337,6 +345,9 @@ without excessive praise. The player is treated as a musician at every level.
     supplies its beginning and ending; grade one or two missing inner functions,
     never demand whole-sequence recall. Both single and complete spoken replies
     can supply the requested missing positions. Speak all given clues.
+    Add I-V-vi-IV and vi-IV-I-V as two familiar pop loops, with concise verified
+    song references. Clarify that practice uses seventh voicings rather than an
+    exact recording, and that relative-major labels can describe a minor-feeling loop.
 52. Scripted speech is scoped to the current presentation, not the complete
     conversation. Teaching receives one explanation, without redundant visual
     titles or labels; timing, silence and playback are application behavior, not
@@ -350,10 +361,10 @@ without excessive praise. The player is treated as a musician at every level.
     practice invitation. Save and replay the actual example position.
 54. Use clean piano diagrams and prominent conventional symbols such as CM, Cm,
     C7, C7b5 and Cadd9 for chords. Use VexFlow SVG engraving with locally bundled
-    Bravura for scales and progression notation, never approximate note-dot charts.
-    Unknown positions contain no pitch data. Use a single clef for scalar lines
-    and a grand staff only when chord voicings need it. Short screens may use a
-    compact symbol strip; full notation remains available in answer review.
+    Bravura for scales, never approximate note-dot charts. Progressions use a clear
+    ordered chord-symbol/function strip in teaching, questions and answer review.
+    Unknown positions contain no pitch data and have a restrained dashed blank.
+    Use a single clef for scalar lines.
     Keep graphics inside their slot, above the independent voice visualizer.
     Never draw an empty staff for an unknown-only question. A single unknown
     harmonic function uses a centered tonic-reference/answer prompt; notation is
@@ -389,8 +400,11 @@ without excessive praise. The player is treated as a musician at every level.
     and mark authentication/API responses noindex without blocking resources needed
     to render the app. Cache fingerprinted build assets immutably. Do not invent
     reviews, ratings or private lesson URLs for search engines.
-59. Use native Realtime speech at 1.2x speed for the whole tutor, with clear pitch
-    names and short pauses. Routine exercise feedback is one brief confirmation
+59. Default native Realtime speech to 1.2x, the center of a five-step Tutor speed
+    control in Audio settings: 0.9, 1.05, 1.2, 1.35 and 1.5. Persist it per owner;
+    apply changes at the next response boundary without reconnecting or changing
+    instrument pitch/timing. Keep clear pitch names and short pauses.
+    Routine exercise feedback is one brief confirmation
     or correction followed by the necessary next-question cue. Do not recite
     semitone counts or repeat a lesson after every correct answer. Keep useful
     mistake distinctions, requested explanations and all background-listening

@@ -15,6 +15,8 @@ import {
   isInversionLesson,
   isSeventhInversion,
   scalePools,
+  hasTutorial,
+  popProgressions,
 } from './catalog.js';
 import type {
   LessonExample,
@@ -228,6 +230,7 @@ export function cadence(root: number): NoteEvent[] {
 const melodicPair = (semitones: number, at = 0.15) => [note(60, at), note(60 + semitones, at + 1)];
 
 export function teachingSteps(skillId: SkillId, instrument: Instrument): TeachingStep[] {
+  if (!hasTutorial(skillId)) return [];
   const steps: TeachingStep[] = [
     {
       id: 'overview',
@@ -249,20 +252,7 @@ export function teachingSteps(skillId: SkillId, instrument: Instrument): Teachin
     );
   };
 
-  if (skillId === 'pitch-direction') {
-    demo(
-      'up',
-      'Moving up',
-      'These notes move up. The second is higher, regardless of its loudness.',
-      melodicPair(4),
-    );
-    demo(
-      'down',
-      'Moving down',
-      'Now they move down. Follow the pitch falling from the first note to the second.',
-      [note(64, 0.15), note(60, 1.15)],
-    );
-  } else if (
+  if (
     skillId === 'intervals-foundation' ||
     skillId === 'intervals-harmonic' ||
     skillId === 'intervals-chromatic'
@@ -418,17 +408,24 @@ export function teachingSteps(skillId: SkillId, instrument: Instrument): Teachin
             [2, 5, 1],
             [1, 4, 5],
           ]
-        : [
-            [1, 6, 2, 5],
-            [1, 4, 5, 1],
-          ];
+        : [[1, 6, 2, 5], [1, 4, 5, 1], ...popProgressions];
+    // Song references describe root movement, not an exact recording/arrangement:
+    // https://www.ethanhein.com/wp/2016/musical-simples-with-or-without-you/
+    // https://www.native-instruments.com/blogs/blog/common-chord-progressions
+    const popExamples: Record<string, string> = {
+      '1,5,6,4':
+        'I, V, vi, IV is the loop in U2\'s "With or Without You": hear V move to minor vi instead of home. Our example uses seventh chords, not the original arrangement.',
+      '6,4,1,5':
+        'Alan Walker\'s "The Spectre" follows vi, IV, I, V, starting on the relative minor. Keep our major-key tonic reference in mind while you follow the bass.',
+    };
     for (const sequence of sequences)
       demo(
         `progression-${sequence.join('-')}`,
         sequence.map((degree) => ['I', 'ii', 'iii', 'IV', 'V', 'vi'][degree - 1]).join(' – '),
         sequence.join() === '2,5,1'
-          ? 'Hear ii–V–I: D minor seventh prepares G dominant seventh, which resolves to C major seventh. This is preparation, tension, then home.'
-          : `After the tonic reference, the functions are ${sequence.join(', ')}. Follow the bass between the starting and ending chords.`,
+          ? 'Hear ii–V–I: D minor seventh, G dominant seventh, then C major seventh. Preparation, tension, home. You can hear this pattern in Maroon 5\'s "Sunday Morning."'
+          : (popExamples[sequence.join(',')] ??
+              `After the tonic reference, the functions are ${sequence.join(', ')}. Follow the bass between the starting and ending chords.`),
         [
           ...block(chordNotes(48, 'major7'), 0.1, 0.8, 'reference'),
           ...sequence.flatMap((degree, index) =>

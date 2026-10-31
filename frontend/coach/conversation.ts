@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import type { Snapshot, ToolName, ToolResult } from '../../server/types/agent.types.js';
+import type {
+  Presentation,
+  Snapshot,
+  ToolName,
+  ToolResult,
+} from '../../server/types/agent.types.js';
 import type { Transcript } from './types.js';
 import type {
   RealtimeConnection,
@@ -42,12 +47,21 @@ interface Handlers {
     interrupted?: boolean,
   ) => void;
   error: (error: unknown) => void;
+  narrate?: (
+    narration: NonNullable<Presentation['narration']>,
+    signal: AbortSignal,
+    onStarted: () => void,
+  ) => Promise<boolean>;
 }
 
 export class Conversation {
   private turn = 0;
   private generation = 0;
-  private active: { request: ResponseRequest; id?: string } | null = null;
+  private active: {
+    request: ResponseRequest;
+    id?: string;
+    cached?: { controller: AbortController; started: boolean };
+  } | null = null;
   private queued: ResponseRequest | null = null;
   private working = 0;
   private operations: Promise<void> = Promise.resolve();
@@ -68,6 +82,7 @@ export class Conversation {
   ) {}
 
   reset() {
+    this.cancelCached();
     this.cancelUiReply?.();
     this.generation++;
     this.section++;
@@ -85,6 +100,7 @@ export class Conversation {
   }
 
   begin(providerInterrupted = false): number {
+    this.cancelCached();
     this.cancelUiReply?.();
     const oldTurn = this.turn;
     const speaking = [...this.responses.values()].some(
@@ -230,11 +246,74 @@ export class Conversation {
     const request = this.queued;
     this.queued = null;
     if (request.turn !== this.turn) return;
-    this.active = { request };
-    this.connection.respond({
+    const current = {
       ...request,
       voiceSpeed: this.handlers.snapshot()?.settings.voiceSpeed,
-    });
+    };
+    const narration = request.presentation?.narration;
+    this.active = { request: current };
+    if (
+      this.handlers.narrate &&
+      narration?.audio &&
+      narration.speed === current.voiceSpeed &&
+      narration.voice === this.handlers.snapshot()?.settings.voice
+    ) {
+      this.active.cached = { controller: new AbortController(), started: false };
+      void this.playCached(this.active);
+    } else this.connection.respond(current);
+  }
+
+  private cancelCached() {
+    const active = this.active;
+    if (!active?.cached) return;
+    this.active = null;
+    active.cached.controller.abort();
+    if (active.cached.started) {
+      this.handlers.message(
+        'assistant',
+        active.request.presentation!.narration!.text,
+        `cached:${active.request.id}`,
+        true,
+        true,
+      );
+      if (this.connection.connected)
+        this.connection.message(
+          JSON.stringify({ event: 'narration_interrupted', reply: 'none' }),
+          'system',
+        );
+    }
+  }
+
+  private async playCached(active: NonNullable<Conversation['active']>) {
+    const generation = this.generation;
+    const { request, cached } = active;
+    const narration = request.presentation!.narration!;
+    const current = () =>
+      this.active === active &&
+      generation === this.generation &&
+      request.turn === this.turn &&
+      this.connection.connected &&
+      !cached!.controller.signal.aborted;
+    try {
+      const completed = await this.handlers.narrate!(narration, cached!.controller.signal, () => {
+        if (!current()) return;
+        cached!.started = true;
+        this.handlers.phase('speaking');
+        this.handlers.message('assistant', narration.text, `cached:${request.id}`, false);
+      });
+      if (!current()) return;
+      if (!completed) throw new Error('Cached narration did not finish.');
+      this.active = null;
+      this.connection.message(narration.text, 'assistant');
+      this.handlers.message('assistant', narration.text, `cached:${request.id}`, true);
+      await this.deliver(request.turn);
+    } catch {
+      if (!current()) return;
+      if (cached!.started)
+        this.handlers.message('assistant', narration.text, `cached:${request.id}`, true, true);
+      delete active.cached;
+      this.connection.respond(request);
+    }
   }
   private voiceTurn(id: string, providerInterrupted = false) {
     let turn = this.voiceTurns.get(id);
@@ -284,7 +363,7 @@ export class Conversation {
           );
         break;
       case 'response.created': {
-        if (!this.active || !event.response) return;
+        if (!this.active || this.active.cached || !event.response) return;
         const requested = event.response.metadata?.earrr_request;
         if (requested && requested !== this.active.request.id) return;
         if (this.responses.has(event.response.id)) return;
@@ -409,6 +488,7 @@ export class Conversation {
         break;
       }
       case 'error':
+        if (String(event.error?.event_id ?? '').startsWith('earrr-cache:')) break;
         if (
           !['response_cancel_not_active', 'output_audio_buffer_empty'].includes(
             event.error?.code ?? '',

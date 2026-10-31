@@ -30,6 +30,7 @@ async function request<T>(
       headers: {
         'Content-Type': 'application/json',
         'x-earrr-client': '1',
+        'x-earrr-narration': '1',
         ...Log.headers(requestId),
         ...owner.headers,
         ...options.headers,
@@ -95,3 +96,16 @@ export const acknowledgeTeaching = (sessionId: string, presentationId: string) =
     method: 'POST',
     body: JSON.stringify({ sessionId, presentationId }),
   });
+
+export async function narrationAudio(url: string, signal: AbortSignal): Promise<ArrayBuffer> {
+  if (!/^\/api\/narration\/[a-f0-9]{64}$/.test(url)) throw new Error('Invalid narration URL.');
+  const response = await fetch(url, {
+    headers: { 'x-earrr-client': '1', ...credentials().headers },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(2000)]),
+  });
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('audio/wav'))
+    throw new Error('The saved narration is unavailable.');
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength > 48_000 * 45 + 44) throw new Error('The saved narration is too large.');
+  return bytes;
+}

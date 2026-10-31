@@ -5,8 +5,9 @@ import { AppError } from '../errors/app-error.js';
 import { toolRequestSchema } from '../types/agent.types.js';
 import type { Store } from '../db/database.js';
 import { Log, logToolResult } from '../services/log.service.js';
+import type { NarrationService } from '../services/narration.service.js';
 
-export function agentRoutes() {
+export function agentRoutes(narration?: NarrationService) {
   const router = Router();
   router.get('/state', async (_req, res) => {
     const snapshot = await requestGame(res).snapshot();
@@ -17,7 +18,12 @@ export function agentRoutes() {
     const input = toolRequestSchema.parse(req.body);
     const result = await requestGame(res).execute(input);
     logToolResult(input, result);
-    reply(res, result);
+    reply(
+      res,
+      narration && req.get('x-earrr-narration') === '1'
+        ? await narration.prepare(result, input.name)
+        : result,
+    );
   });
   router.post('/agent/tools', async (req, res, next) => {
     const game = requestGame(res);
@@ -27,7 +33,12 @@ export function agentRoutes() {
       action = input.name;
       const result = await game.execute(input, true);
       logToolResult(input, result);
-      reply(res, result);
+      reply(
+        res,
+        narration && req.get('x-earrr-narration') === '1'
+          ? await narration.prepare(result, input.name)
+          : result,
+      );
     } catch (error) {
       const details =
         error instanceof ZodError

@@ -47,6 +47,11 @@ export class AudioEngine {
   private outputDevice = '';
   private outputChanges: Promise<void> = Promise.resolve();
   private playbackStartedAt: number | null = null;
+  private cachedVoice: {
+    gain: GainNode;
+    analyser: AnalyserNode;
+    finish: (completed: boolean) => void;
+  } | null = null;
   private readonly bank = new SampleBank();
 
   constructor(private readonly onVoiceError: (error: Error) => void = () => undefined) {}
@@ -109,6 +114,8 @@ export class AudioEngine {
     this.volume = volume;
     if (this.context) this.musicGain?.gain.setTargetAtTime(volume, this.context.currentTime, 0.025);
     if (this.voiceElement) this.voiceElement.volume = volume;
+    if (this.context)
+      this.cachedVoice?.gain.gain.setTargetAtTime(volume, this.context.currentTime, 0.025);
   }
 
   async attachVoice(stream: MediaStream) {
@@ -151,6 +158,7 @@ export class AudioEngine {
   }
 
   detachVoice() {
+    this.cachedVoice?.finish(false);
     this.voiceSource?.disconnect();
     this.voiceSource = null;
     this.voiceAnalyser?.disconnect();
@@ -202,7 +210,10 @@ export class AudioEngine {
     return this.readLevel(this.microphoneAnalyser);
   }
   voiceLevel(): number {
-    return this.readLevel(this.voiceAnalyser);
+    return Math.max(
+      this.readLevel(this.voiceAnalyser),
+      this.readLevel(this.cachedVoice?.analyser ?? null),
+    );
   }
   level(): number {
     return Math.max(this.readLevel(this.analyser), this.voiceLevel());
@@ -298,7 +309,67 @@ export class AudioEngine {
     }
   }
 
+  async playNarration(
+    bytes: ArrayBuffer,
+    signal: AbortSignal,
+    onStarted: () => void,
+  ): Promise<boolean> {
+    this.stop();
+    const generation = this.generation;
+    await this.unlock();
+    if (signal.aborted || generation !== this.generation) return false;
+    const context = this.context!;
+    const buffer = await context.decodeAudioData(bytes);
+    if (signal.aborted || generation !== this.generation) return false;
+    this.cachedVoice?.finish(false);
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    source.buffer = buffer;
+    gain.gain.value = this.volume;
+    source.connect(gain);
+    gain.connect(analyser);
+    analyser.connect(context.destination);
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const cleanup = () => {
+        source.disconnect();
+        gain.disconnect();
+        analyser.disconnect();
+      };
+      const finish = (completed: boolean) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener('abort', abort);
+        if (this.cachedVoice?.finish === finish) this.cachedVoice = null;
+        if (completed) cleanup();
+        else {
+          gain.gain.setTargetAtTime(0, context.currentTime, 0.003);
+          source.onended = cleanup;
+          try {
+            source.stop(context.currentTime + 0.015);
+          } catch {
+            cleanup();
+          }
+        }
+        resolve(completed);
+      };
+      const abort = () => finish(false);
+      this.cachedVoice = { gain, analyser, finish };
+      source.onended = () => finish(true);
+      signal.addEventListener('abort', abort, { once: true });
+      try {
+        source.start();
+        onStarted();
+      } catch {
+        finish(false);
+      }
+    });
+  }
+
   stop() {
+    this.cachedVoice?.finish(false);
     this.generation++;
     this.playbackStartedAt = null;
     for (const note of this.notes) this.release(note);

@@ -85,9 +85,9 @@ without excessive praise. The player is treated as a musician at every level.
     is the exception: begin practice directly with one short explanation of pitch.
     It has no tutorial or tutorial-return button, and uses rising/falling notes only.
 11. Use one realtime conversation for input, tools, native streamed voice, and
-    captions. Natural variations in spoken phrasing are acceptable. Do not add
-    a second narrator, verbatim-speech verification, or a speech-delivery gate
-    to deterministic scoring. Preserve causal tool/result and playback order.
+    captions. Reuse recordings of the same Realtime voice for server-owned fixed
+    narration; do not introduce a separate TTS narrator. Never gate deterministic
+    scoring on speech delivery or transcription. Preserve causal tool/result and playback order.
     Native WebRTC VAD owns speech cancellation and truncation. Do not send
     a second cancellation/buffer clear after its speech-start event; keyboard
     and button interruptions still explicitly stop output.
@@ -315,6 +315,19 @@ without excessive praise. The player is treated as a musician at every level.
     the selected view immediately. Do not delay instrument replay, typed or
     spoken input, or continuous coaching turns. Serialize navigation even before
     voice connects so the server and visible lesson keep the same final choice.
+    Cache fixed teaching, question cues and concise correct-answer narration only.
+    Keep hints, mistakes, partial answers, round choices and free conversation live.
+    Extract completed audio from the server's existing Realtime observer without
+    another generation. Accept only the approved script, voice, speed and format,
+    never client-uploaded audio or arbitrary conversation. Bound memory and disk
+    storage; retain recordings across restarts without changing learning saves.
+    Cache misses, corrupt clips and optional retrieval failures use native speech.
+    Insert completed playback as assistant context; mark interrupted delivery
+    explicitly without claiming the unheard remainder was spoken. Cached voice
+    shares volume, output-device selection, visualizer and interruption behavior.
+    `EARRR_NARRATION_CACHE=0` disables this optimization without changing the model.
+    Advertise client support explicitly so already-open older tabs retain their
+    original native narration protocol during deployment.
 45. Resolve conversational navigation from exact visible lesson names. All active
     lessons are freely selectable, even after an unsuccessful round. Never
     require prerequisite tests, substitute an easier lesson, or claim the requested

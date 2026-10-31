@@ -7,6 +7,7 @@ import type { SkillId } from '../shared/types/course.js';
 import type { ToolName } from '../server/types/agent.types.js';
 import {
   agentInstructions,
+  narrationText,
   presentationContext,
   publicToolResult,
 } from '../server/services/agent/presentation.js';
@@ -36,6 +37,56 @@ async function start(id: SkillId) {
 }
 
 describe('one presentation contract across the whole course', () => {
+  it('scripts only deterministic narration and keeps mistakes, hints and round choices conversational', async () => {
+    sessionId = (await call('start_session', { mode: 'coach', focus: 'triads' })).snapshot.session!
+      .id;
+    const selected = await call('play_exercise');
+    const text = narrationText(selected);
+    expect(text).toContain(selected.teaching!.narration);
+    expect(text).toContain('click Skip or ask me to skip');
+    const question = await call('start_practice');
+    expect(narrationText(question)).toContain('chord quality');
+    const exercise = (await store.exercises.get(question.snapshot.current!.id))!;
+    const correct = await call('submit_answer', {
+      exerciseId: exercise.id,
+      answer: exercise.expected,
+    });
+    const spoken = narrationText(correct)!;
+    expect(spoken).toMatch(/^Correct:/);
+    expect(spoken).toContain('Next,');
+    const accidentalNames: Record<string, string> = {
+      bb: ' double flat',
+      '##': ' double sharp',
+      b: ' flat',
+      '#': ' sharp',
+    };
+    for (const note of correct.snapshot.feedback!.example!.notes) {
+      const spelled = note
+        .replace(/-?\d+$/, '')
+        .replace(/bb|##|b|#/g, (value) => accidentalNames[value]!);
+      expect(spoken).toContain(spelled);
+    }
+    const spelling = structuredClone(correct);
+    const feedback = spelling.agent.presentation!.context.parts.find(
+      (part) => part.kind === 'feedback',
+    )!;
+    if (feedback.kind !== 'feedback') throw new Error('Expected feedback facts.');
+    feedback.played!.notes = ['Gb3', 'Bbb3', 'Db4', 'F#4', 'E##4'];
+    const spelled = narrationText(spelling)!;
+    expect(spelled).toContain('G flat, B double flat, D flat, F sharp, E double sharp');
+    expect(spelled).not.toContain('Bbb');
+    expect(
+      narrationText(await call('give_hint', { exerciseId: correct.snapshot.current!.id })),
+    ).toBeNull();
+    const next = (await store.exercises.get(correct.snapshot.current!.id))!;
+    const wrong = await call('submit_answer', {
+      exerciseId: next.id,
+      answer: { ...next.expected, quality: next.expected.quality === 'major' ? 'minor' : 'major' },
+    });
+    expect(narrationText(wrong)).toBeNull();
+    expect(narrationText(await call('inspect_progress'))).toBeNull();
+  });
+
   it('keeps routine context small without dropping question, grading or round facts from the model or UI', async () => {
     const first = await start('intervals-foundation');
     const exercise = (await store.exercises.get(first.snapshot.current!.id))!;

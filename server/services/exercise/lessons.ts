@@ -270,7 +270,7 @@ export function teachingSteps(skillId: SkillId, instrument: Instrument): Teachin
       demo(
         name.replaceAll(' ', '-'),
         name,
-        `A ${name} spans ${distance} ${distance === 1 ? 'semitone' : 'semitones'}: ${pitches.join(' to ')}.${distance === 12 ? ' Same note name, one octave apart.' : ''}`,
+        `${distance === 12 ? 'An' : 'A'} ${name} spans ${distance} ${distance === 1 ? 'semitone' : 'semitones'}: ${pitches.join(' to ')}.${distance === 12 ? ' Same note name, one octave apart.' : ''}`,
         harmonic
           ? block([60, 60 + distance])
           : melodic

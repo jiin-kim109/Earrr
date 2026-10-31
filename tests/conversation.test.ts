@@ -5,7 +5,7 @@ import { Conversation } from '../frontend/coach/conversation.js';
 import { publicToolResult } from '../server/services/agent/presentation.js';
 import { RealtimeConnection } from '../frontend/coach/realtime.js';
 import type { RealtimeEvent } from '../frontend/coach/realtime.js';
-import type { Snapshot, ToolResult, ToolName } from '../server/types/agent.types.js';
+import type { Presentation, Snapshot, ToolResult, ToolName } from '../server/types/agent.types.js';
 import type { Transcript } from '../frontend/coach/types.js';
 
 let store: Store;
@@ -22,6 +22,15 @@ let after: ReturnType<
   typeof vi.fn<(result: ToolResult | null, current: () => boolean) => Promise<ToolResult | null>>
 >;
 let errors: string[];
+let narrate: ReturnType<
+  typeof vi.fn<
+    (
+      narration: NonNullable<Presentation['narration']>,
+      signal: AbortSignal,
+      onStarted: () => void,
+    ) => Promise<boolean>
+  >
+>;
 let counter = 0;
 const responses = () => sent.filter((event) => event.type === 'response.create');
 function emit(event: RealtimeEvent) {
@@ -111,6 +120,10 @@ beforeEach(async () => {
       ),
   );
   after = vi.fn(async () => null);
+  narrate = vi.fn(async (_narration, _signal, onStarted) => {
+    onStarted();
+    return true;
+  });
   loop = new Conversation(connection, {
     snapshot: () => snapshot,
     result: (result) => {
@@ -118,6 +131,7 @@ beforeEach(async () => {
     },
     execute,
     afterReply: after,
+    narrate,
     stopMusic: vi.fn(),
     phase: vi.fn(),
     error: (error) => errors.push(error instanceof Error ? error.message : String(error)),
@@ -145,6 +159,151 @@ afterEach(async () => {
 });
 
 describe('causal single-stream turns', () => {
+  function cachedNextResult(speed: 0.9 | 1.2 = 1.2) {
+    const run = execute.getMockImplementation()!;
+    execute.mockImplementationOnce(async (...args) => {
+      const result = await run(...args);
+      result.agent.presentation!.narration = {
+        key: 'a'.repeat(64),
+        text: 'A triad has three chord tones.',
+        voice: 'sage',
+        speed,
+        audio: { url: `/api/narration/${'a'.repeat(64)}`, seconds: 2 },
+      };
+      return result;
+    });
+  }
+
+  it('plays a cache hit without model generation and adds assistant context only after playback finishes', async () => {
+    await tool('play_exercise');
+    await reply();
+    vi.useFakeTimers();
+    cachedNextResult();
+    let finish!: (completed: boolean) => void;
+    narrate.mockImplementationOnce((_narration, _signal, onStarted) => {
+      onStarted();
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    });
+    const count = responses().length;
+    const delivered = after.mock.calls.length;
+    const before = sent.length;
+    const selecting = loop.action('select_lesson', { skillId: 'triads' });
+    await vi.advanceTimersByTimeAsync(250);
+    await selecting;
+    expect(narrate).toHaveBeenCalledOnce();
+    expect(responses()).toHaveLength(count);
+    expect(after).toHaveBeenCalledTimes(delivered);
+    expect(
+      sent
+        .slice(before)
+        .filter(
+          (event) =>
+            event.type === 'conversation.item.create' &&
+            (event.item as { role?: string }).role === 'assistant',
+        ),
+    ).toHaveLength(0);
+    finish(true);
+    await vi.advanceTimersByTimeAsync(0);
+    const spoken = sent
+      .slice(before)
+      .find(
+        (event) =>
+          event.type === 'conversation.item.create' &&
+          (event.item as { role?: string }).role === 'assistant',
+      );
+    expect(spoken?.item).toMatchObject({
+      role: 'assistant',
+      content: [{ type: 'output_text', text: 'A triad has three chord tones.' }],
+    });
+    expect(after).toHaveBeenCalledTimes(delivered + 1);
+    expect(snapshot.totalAnswers).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
+  it.each(['text', 'voice', 'reset'] as const)(
+    'cancels cached voice on %s without injecting unheard narration or cancelling a nonexistent response',
+    async (interruption) => {
+      await tool('play_exercise');
+      await reply();
+      vi.useFakeTimers();
+      cachedNextResult();
+      let signal!: AbortSignal;
+      narrate.mockImplementationOnce((_narration, currentSignal, onStarted) => {
+        signal = currentSignal;
+        onStarted();
+        return new Promise((resolve) => {
+          currentSignal.addEventListener('abort', () => resolve(false), { once: true });
+        });
+      });
+      const selecting = loop.action('select_lesson', { skillId: 'triads' });
+      await vi.advanceTimersByTimeAsync(250);
+      await selecting;
+      const before = sent.length;
+      const delivered = after.mock.calls.length;
+      if (interruption === 'text') loop.text('Wait, explain the first part.');
+      else if (interruption === 'voice') {
+        emit({ type: 'input_audio_buffer.speech_started', item_id: 'cached-barge-in' });
+        emit({ type: 'input_audio_buffer.committed', item_id: 'cached-barge-in' });
+      } else loop.reset();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(signal.aborted).toBe(true);
+      expect(after).toHaveBeenCalledTimes(delivered);
+      expect(sent.slice(before).some((event) => event.type === 'response.cancel')).toBe(false);
+      expect(
+        sent
+          .slice(before)
+          .some(
+            (event) =>
+              event.type === 'conversation.item.create' &&
+              (event.item as { role?: string }).role === 'assistant',
+          ),
+      ).toBe(false);
+      expect(messages.filter((message) => message.id.startsWith('cached:')).at(-1)?.delivery).toBe(
+        'interrupted',
+      );
+      expect(errors).toEqual([]);
+    },
+  );
+
+  it('falls back once to native voice if a cached clip cannot be fetched or decoded', async () => {
+    await tool('play_exercise');
+    await reply();
+    vi.useFakeTimers();
+    cachedNextResult();
+    narrate.mockRejectedValueOnce(new Error('Optional cached audio unavailable.'));
+    const count = responses().length;
+    const selecting = loop.action('select_lesson', { skillId: 'triads' });
+    await vi.advanceTimersByTimeAsync(250);
+    await selecting;
+    expect(narrate).toHaveBeenCalledOnce();
+    expect(responses()).toHaveLength(count + 1);
+    expect(errors).toEqual([]);
+    emit({
+      type: 'error',
+      error: {
+        code: 'invalid_value',
+        event_id: 'earrr-cache:missing',
+        message: 'Optional retrieval expired.',
+      },
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('does not use a recording at the wrong speech speed', async () => {
+    await tool('play_exercise');
+    await reply();
+    vi.useFakeTimers();
+    cachedNextResult(0.9);
+    const count = responses().length;
+    const selecting = loop.action('select_lesson', { skillId: 'triads' });
+    await vi.advanceTimersByTimeAsync(250);
+    await selecting;
+    expect(narrate).not.toHaveBeenCalled();
+    expect(responses()).toHaveLength(count + 1);
+  });
+
   it('updates navigation immediately but generates speech only for the final choice in a burst', async () => {
     await tool('play_exercise');
     await reply();

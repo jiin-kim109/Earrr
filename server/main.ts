@@ -60,7 +60,7 @@ Log.configure({
     config.databaseUrl ?? '',
   ],
 });
-const { app, calls } =
+const { app, calls, narration } =
   storage instanceof Store ? await createApp(config, storage) : await createApp(config, storage);
 const http = createServer(app);
 const entrySettings = `<script id="earrr-entry-settings" type="application/json">${JSON.stringify({
@@ -125,6 +125,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, async () => {
     try {
       await calls.close();
+      await narration.close();
     } catch (error) {
       console.error(
         '[earrr] Voice shutdown failed:',

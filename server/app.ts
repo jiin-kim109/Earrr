@@ -17,6 +17,7 @@ import { feedbackRoutes } from './controllers/feedback.controller.js';
 import { FeedbackRepository } from './repositories/feedback.repository.js';
 import { VoiceLimitRepository } from './repositories/voice-limit.repository.js';
 import { RealtimeCallService } from './services/realtime-call.service.js';
+import { NarrationService } from './services/narration.service.js';
 
 import express from 'express';
 import type { Express } from 'express';
@@ -26,13 +27,18 @@ export function createApp(
   storage: WorkspaceDirectory,
   fetcher?: typeof fetch,
   calls?: RealtimeCallService,
-): Promise<{ app: Express; calls: RealtimeCallService }>;
+): Promise<{ app: Express; calls: RealtimeCallService; narration: NarrationService }>;
 export function createApp(
   config: Config,
   storage: Store,
   fetcher?: typeof fetch,
   calls?: RealtimeCallService,
-): Promise<{ app: Express; game: AgentService; calls: RealtimeCallService }>;
+): Promise<{
+  app: Express;
+  game: AgentService;
+  calls: RealtimeCallService;
+  narration: NarrationService;
+}>;
 export async function createApp(
   config: Config,
   storage: Store | WorkspaceDirectory,
@@ -47,12 +53,14 @@ export async function createApp(
   const feedback = new FeedbackRepository(
     storage instanceof Store ? storage.db : storage.cloud.client,
   );
+  const narration = new NarrationService(config);
   const realtimeCalls =
     calls ??
     new RealtimeCallService(
       config,
       new VoiceLimitRepository(storage instanceof Store ? storage.db : storage.cloud.client),
       fetcher,
+      { observe: (send) => narration.observer(send) },
     );
 
   app.disable('x-powered-by');
@@ -101,7 +109,18 @@ export async function createApp(
       res.locals.game = game;
       next();
     });
-  app.use('/api', agentRoutes());
+  app.get('/api/narration/:key', async (req, res) => {
+    const entry = await narration.get(String(req.params.key));
+    if (!entry) {
+      res.status(404).end();
+      return;
+    }
+    res
+      .set('Cache-Control', 'private, max-age=31536000, immutable')
+      .type('audio/wav')
+      .send(entry.audio);
+  });
+  app.use('/api', agentRoutes(narration));
   app.use('/api', userRoutes());
   app.use('/api', feedbackRoutes(feedback));
   app.use('/api', exerciseRoutes());
@@ -111,5 +130,5 @@ export async function createApp(
     next(AppError.create('route_not_found'));
   });
   app.use(requestErrors(config));
-  return { app, game, calls: realtimeCalls };
+  return { app, game, calls: realtimeCalls, narration };
 }

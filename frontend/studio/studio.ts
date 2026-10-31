@@ -13,6 +13,7 @@ import {
   callTool,
   getState,
   getCurriculum,
+  narrationAudio,
   saveSettings,
   saveTranscript,
 } from '../lib/api.js';
@@ -106,6 +107,12 @@ class Studio {
       }
     },
     afterReply: (result, current) => this.afterReply(result, current),
+    narrate: async (narration, signal, onStarted) => {
+      const owner = scope();
+      const bytes = await narrationAudio(narration.audio!.url, signal);
+      if (signal.aborted || scope() !== owner) return false;
+      return this.audio.playNarration(bytes, signal, onStarted);
+    },
     stopMusic: () => this.audio.stop(),
     phase: (phase) => this.patch({ phase, ...(phase === 'hearing' ? { answerReveal: null } : {}) }),
     message: (role, text, id, complete, interrupted) =>

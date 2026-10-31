@@ -166,6 +166,13 @@ export interface Presentation {
   purpose: Exclude<ReplyPurpose, 'none'>;
   context: { parts: PresentationPart[] };
   instructions?: string;
+  narration?: {
+    key: string;
+    text: string;
+    voice: Settings['voice'];
+    speed: Settings['voiceSpeed'];
+    audio?: { url: string; seconds: number };
+  };
 }
 
 export interface AgentCourseContext extends Omit<CourseState, 'lessons' | 'round'> {

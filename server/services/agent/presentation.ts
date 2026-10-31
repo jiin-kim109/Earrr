@@ -44,9 +44,77 @@ export function actionMessage(effect: ActionEffect, options: { hasNextLesson: bo
 }
 
 export function presentationInstructions(
-  purpose: Exclude<ReplyPurpose, 'none'>,
+  purpose: Exclude<ReplyPurpose, 'none'> | 'narration',
 ): string | undefined {
   return purpose !== 'message' ? render('reply', { purpose, scoped: true }) : undefined;
+}
+
+export function narrationText(result: ToolResult): string | null {
+  if (result.review || result.roundResult || result.lessonCompleted || result.hint) return null;
+  const { presentation } = result.agent;
+  if (!presentation?.instructions) return null;
+  const parts: string[] = [];
+  for (const part of presentation.context.parts) {
+    if (part.kind === 'teaching') {
+      parts.push(part.explanation);
+      if (part.offerSkip)
+        parts.push("If you'd like to go straight to exercises, click Skip or ask me to skip.");
+    } else if (part.kind === 'instruction' && part.text) parts.push(part.text);
+    else if (part.kind === 'next_question' || part.kind === 'listening_cue') {
+      const current = result.snapshot.current;
+      const cue =
+        part.cue ??
+        (current?.kind === 'direction' ? 'Does the second note move up or down?' : current?.prompt);
+      if (!cue) return null;
+      parts.push(`${part.kind === 'next_question' ? 'Next, ' : ''}${cue}`);
+    } else if (part.kind === 'feedback') {
+      if (
+        part.verdict !== 'correct' ||
+        !part.played?.notes.length ||
+        part.played.notes.length > 8 ||
+        part.played.presentation === 'sequence'
+      )
+        return null;
+      const notes = part.played.notes.map((note) => note.replace(/-?\d+$/, ''));
+      parts.push(`Correct: ${part.expectedAnswer}, with notes ${notes.join(', ')}.`);
+    } else return null;
+  }
+  const numbers = [
+    'zero',
+    'one',
+    'two',
+    'three',
+    'four',
+    'five',
+    'six',
+    'seven',
+    'eight',
+    'nine',
+    'ten',
+    'eleven',
+    'twelve',
+    'thirteen',
+    'fourteen',
+    'fifteen',
+    'sixteen',
+  ];
+  const accidentals: Record<string, string> = {
+    b: ' flat',
+    bb: ' double flat',
+    '#': ' sharp',
+    '##': ' double sharp',
+  };
+  const text = parts
+    .join(' ')
+    .replace(
+      /\b([A-G])(bb|##|b|#)?(-?\d)?(?![\w#])/g,
+      (_match, note: string, accidental?: string, octave?: string) =>
+        `${note}${accidental ? accidentals[accidental] : ''}${octave ? ` ${numbers[Number(octave)] ?? octave}` : ''}`,
+    )
+    .replace(/\bdominant 7\b/gi, 'dominant seventh')
+    .replace(/\b(\d+)\b/g, (value) => numbers[Number(value)] ?? value)
+    .trim();
+  return text && text.length <= 1600 ? text : null;
 }
 
 export function agentInstructions(snapshot: Snapshot): string {

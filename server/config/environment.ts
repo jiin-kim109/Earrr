@@ -21,6 +21,7 @@ export interface Config {
   learningSaveKey?: string;
   googleEnabled?: boolean;
   azureAppService?: boolean;
+  narrationCachePath?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
@@ -129,6 +130,14 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     deployment: env.AZURE_OPENAI_REALTIME_DEPLOYMENT?.trim() || 'gpt-realtime-2.1',
     transcriptionDeployment: env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT?.trim() || '',
     configured: Boolean(endpoint && apiKey),
+    ...(endpoint && apiKey && env.EARRR_NARRATION_CACHE !== '0'
+      ? {
+          narrationCachePath: resolve(
+            env.WEBSITE_SITE_NAME ? env.HOME || '/home' : 'data',
+            'earrr-narration-cache',
+          ),
+        }
+      : {}),
     ...(env.WEBSITE_SITE_NAME ? { azureAppService: true } : {}),
     ...(env.SUPABASE_URL
       ? {

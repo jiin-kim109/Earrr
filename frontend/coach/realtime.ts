@@ -284,10 +284,14 @@ export class RealtimeConnection {
       throw new Error('The coach connection is being restored. Your current lesson is saved.');
     this.channel!.send(JSON.stringify(event));
   }
-  message(text: string, role: 'user' | 'system' = 'user') {
+  message(text: string, role: 'user' | 'system' | 'assistant' = 'user') {
     this.send({
       type: 'conversation.item.create',
-      item: { type: 'message', role, content: [{ type: 'input_text', text }] },
+      item: {
+        type: 'message',
+        role,
+        content: [{ type: role === 'assistant' ? 'output_text' : 'input_text', text }],
+      },
     });
   }
   functionResult(callId: string, output: unknown) {
@@ -316,7 +320,11 @@ export class RealtimeConnection {
           request.tools === 'play_exercise'
             ? { type: 'function', name: 'play_exercise' }
             : request.tools,
-        metadata: { earrr_turn: String(request.turn), earrr_request: request.id },
+        metadata: {
+          earrr_turn: String(request.turn),
+          earrr_request: request.id,
+          ...(presentation?.narration ? { earrr_narration: presentation.narration.key } : {}),
+        },
         ...(presentation
           ? {
               instructions: presentation.instructions,
@@ -324,7 +332,16 @@ export class RealtimeConnection {
                 {
                   type: 'message',
                   role: 'user',
-                  content: [{ type: 'input_text', text: JSON.stringify(presentation.context) }],
+                  content: [
+                    {
+                      type: 'input_text',
+                      text: JSON.stringify(
+                        presentation.narration
+                          ? { narration: presentation.narration.text }
+                          : presentation.context,
+                      ),
+                    },
+                  ],
                 },
               ],
             }

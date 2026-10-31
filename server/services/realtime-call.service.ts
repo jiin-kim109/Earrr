@@ -41,6 +41,7 @@ interface Usage {
 interface Options {
   now?: () => number;
   socket?: (url: string, options: WebSocket.ClientOptions) => WebSocket;
+  observe?: (send: (event: object) => void) => (event: unknown) => void;
 }
 
 export class RealtimeCallService {
@@ -144,6 +145,10 @@ export class RealtimeCallService {
 
   private observe(call: Call) {
     let alive = true;
+    const observe = this.options.observe?.((event) => {
+      if (!call.stopping && call.socket.readyState === WebSocket.OPEN)
+        call.socket.send(JSON.stringify(event));
+    });
     call.socket.on('pong', () => {
       alive = true;
     });
@@ -160,6 +165,7 @@ export class RealtimeCallService {
         const event: unknown = JSON.parse(data.toString());
         if (!event || typeof event !== 'object' || !('type' in event))
           throw new Error('Invalid server-side voice event.');
+        observe?.(event);
         if (event.type === 'response.done') {
           const { response } = responseUsage.parse(event);
           if (response.usage) {

@@ -75,6 +75,7 @@ class Context {
   createBuffer() {
     return {};
   }
+  decodeAudioData = vi.fn(async (_bytes: ArrayBuffer) => ({}) as AudioBuffer);
   createBufferSource() {
     const node = new Node();
     this.sources.push(node);
@@ -109,6 +110,66 @@ afterEach(() => {
 });
 
 describe('audio-clock scheduling and cancellation', () => {
+  it('plays saved voice through the shared output volume and stops immediately on abort', async () => {
+    vi.stubGlobal('AudioContext', Context);
+    const engine = new AudioEngine();
+    const controller = new AbortController();
+    const started = vi.fn();
+    const playing = engine.playNarration(new ArrayBuffer(16), controller.signal, started);
+    Context.current.finishResume();
+    await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
+    const source = Context.current.sources[0]!;
+    const gain = Context.current.gains.at(-1)!;
+    engine.setVolume(0.25);
+    expect(gain.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.25, 5, 0.025);
+    controller.abort();
+    await expect(playing).resolves.toBe(false);
+    expect(source.stop).toHaveBeenCalledWith(5.015);
+    source.onended?.();
+    expect(source.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('does not start cached voice after a newer action wins during decoding', async () => {
+    vi.stubGlobal('AudioContext', Context);
+    const engine = new AudioEngine();
+    const unlocking = engine.unlock();
+    Context.current.finishResume();
+    await unlocking;
+    let decode!: (audio: AudioBuffer) => void;
+    Context.current.decodeAudioData.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          decode = resolve;
+        }),
+    );
+    const started = vi.fn();
+    const playing = engine.playNarration(
+      new ArrayBuffer(16),
+      new AbortController().signal,
+      started,
+    );
+    await vi.waitFor(() => expect(decode).toBeDefined());
+    engine.stop();
+    decode({} as AudioBuffer);
+    await expect(playing).resolves.toBe(false);
+    expect(started).not.toHaveBeenCalled();
+    expect(Context.current.sources).toHaveLength(0);
+  });
+
+  it('finishes cached narration from the audio end event, including a synchronous stop at start', async () => {
+    vi.stubGlobal('AudioContext', Context);
+    const engine = new AudioEngine();
+    const first = engine.playNarration(new ArrayBuffer(16), new AbortController().signal, () =>
+      engine.stop(),
+    );
+    Context.current.finishResume();
+    await expect(first).resolves.toBe(false);
+    const second = engine.playNarration(new ArrayBuffer(16), new AbortController().signal, vi.fn());
+    await vi.waitFor(() => expect(Context.current.sources).toHaveLength(2));
+    Context.current.sources[1]!.onended?.();
+    await expect(second).resolves.toBe(true);
+  });
+
   it('settles when playback is stopped synchronously by its start callback', async () => {
     vi.stubGlobal('AudioContext', Context);
     const engine = new AudioEngine();

@@ -315,8 +315,10 @@ without excessive praise. The player is treated as a musician at every level.
     the selected view immediately. Do not delay instrument replay, typed or
     spoken input, or continuous coaching turns. Serialize navigation even before
     voice connects so the server and visible lesson keep the same final choice.
-    Cache fixed teaching, question cues and concise correct-answer narration only.
-    Keep hints, mistakes, partial answers, round choices and free conversation live.
+    Cache only complete fixed Welcome and tutorial scripts. All practice questions,
+    root/note-dependent cues, correct and incorrect feedback, hints, partial answers,
+    round choices and free conversation stay on live Realtime. Never build cached
+    feedback by filling variable note names into a template.
     Extract completed audio from the server's existing Realtime observer without
     another generation. Accept only the approved script, voice, speed and format,
     never client-uploaded audio or arbitrary conversation. Bound memory and disk

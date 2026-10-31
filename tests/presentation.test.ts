@@ -37,44 +37,28 @@ async function start(id: SkillId) {
 }
 
 describe('one presentation contract across the whole course', () => {
-  it('scripts only deterministic narration and keeps mistakes, hints and round choices conversational', async () => {
+  it('scripts only fixed teaching and leaves every practice cue and answer to live Realtime', async () => {
     sessionId = (await call('start_session', { mode: 'coach', focus: 'triads' })).snapshot.session!
       .id;
     const selected = await call('play_exercise');
     const text = narrationText(selected);
     expect(text).toContain(selected.teaching!.narration);
     expect(text).toContain('click Skip or ask me to skip');
+    const spelling = structuredClone(selected);
+    const teaching = spelling.agent.presentation!.context.parts[0]!;
+    if (teaching.kind !== 'teaching') throw new Error('Expected fixed teaching.');
+    teaching.explanation = 'Hear G flat, Bbb, Db, F#, and E##.';
+    expect(narrationText(spelling)).toContain(
+      'Hear G flat, B double flat, D flat, F sharp, and E double sharp.',
+    );
     const question = await call('start_practice');
-    expect(narrationText(question)).toContain('chord quality');
+    expect(narrationText(question)).toBeNull();
     const exercise = (await store.exercises.get(question.snapshot.current!.id))!;
     const correct = await call('submit_answer', {
       exerciseId: exercise.id,
       answer: exercise.expected,
     });
-    const spoken = narrationText(correct)!;
-    expect(spoken).toMatch(/^Correct:/);
-    expect(spoken).toContain('Next,');
-    const accidentalNames: Record<string, string> = {
-      bb: ' double flat',
-      '##': ' double sharp',
-      b: ' flat',
-      '#': ' sharp',
-    };
-    for (const note of correct.snapshot.feedback!.example!.notes) {
-      const spelled = note
-        .replace(/-?\d+$/, '')
-        .replace(/bb|##|b|#/g, (value) => accidentalNames[value]!);
-      expect(spoken).toContain(spelled);
-    }
-    const spelling = structuredClone(correct);
-    const feedback = spelling.agent.presentation!.context.parts.find(
-      (part) => part.kind === 'feedback',
-    )!;
-    if (feedback.kind !== 'feedback') throw new Error('Expected feedback facts.');
-    feedback.played!.notes = ['Gb3', 'Bbb3', 'Db4', 'F#4', 'E##4'];
-    const spelled = narrationText(spelling)!;
-    expect(spelled).toContain('G flat, B double flat, D flat, F sharp, E double sharp');
-    expect(spelled).not.toContain('Bbb');
+    expect(narrationText(correct)).toBeNull();
     expect(
       narrationText(await call('give_hint', { exerciseId: correct.snapshot.current!.id })),
     ).toBeNull();
@@ -85,6 +69,7 @@ describe('one presentation contract across the whole course', () => {
     });
     expect(narrationText(wrong)).toBeNull();
     expect(narrationText(await call('inspect_progress'))).toBeNull();
+    expect(narrationText(await call('play_exercise'))).toBeNull();
   });
 
   it('keeps routine context small without dropping question, grading or round facts from the model or UI', async () => {

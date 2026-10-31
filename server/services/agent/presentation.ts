@@ -50,35 +50,23 @@ export function presentationInstructions(
 }
 
 export function narrationText(result: ToolResult): string | null {
-  if (result.review || result.roundResult || result.lessonCompleted || result.hint) return null;
+  if (
+    result.reply !== 'teaching' ||
+    !result.teaching ||
+    result.grade ||
+    result.review ||
+    result.roundResult ||
+    result.lessonCompleted ||
+    result.hint
+  )
+    return null;
   const { presentation } = result.agent;
-  if (!presentation?.instructions) return null;
-  const parts: string[] = [];
-  for (const part of presentation.context.parts) {
-    if (part.kind === 'teaching') {
-      parts.push(part.explanation);
-      if (part.offerSkip)
-        parts.push("If you'd like to go straight to exercises, click Skip or ask me to skip.");
-    } else if (part.kind === 'instruction' && part.text) parts.push(part.text);
-    else if (part.kind === 'next_question' || part.kind === 'listening_cue') {
-      const current = result.snapshot.current;
-      const cue =
-        part.cue ??
-        (current?.kind === 'direction' ? 'Does the second note move up or down?' : current?.prompt);
-      if (!cue) return null;
-      parts.push(`${part.kind === 'next_question' ? 'Next, ' : ''}${cue}`);
-    } else if (part.kind === 'feedback') {
-      if (
-        part.verdict !== 'correct' ||
-        !part.played?.notes.length ||
-        part.played.notes.length > 8 ||
-        part.played.presentation === 'sequence'
-      )
-        return null;
-      const notes = part.played.notes.map((note) => note.replace(/-?\d+$/, ''));
-      parts.push(`Correct: ${part.expectedAnswer}, with notes ${notes.join(', ')}.`);
-    } else return null;
-  }
+  if (!presentation?.instructions || presentation.context.parts.length !== 1) return null;
+  const part = presentation.context.parts[0]!;
+  if (part.kind !== 'teaching') return null;
+  const parts = [part.explanation];
+  if (part.offerSkip)
+    parts.push("If you'd like to go straight to exercises, click Skip or ask me to skip.");
   const numbers = [
     'zero',
     'one',

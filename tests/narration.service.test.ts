@@ -224,6 +224,8 @@ describe('shared recordings of server-owned narration', () => {
     expect(welcome).toEqual(before);
     expect(await cache.prepare(welcome, 'review_answer')).toBe(welcome);
     expect(await cache.prepare(welcome, 'inspect_progress')).toBe(welcome);
+    expect(await cache.prepare(welcome, 'submit_answer')).toBe(welcome);
+    expect(await cache.prepare(welcome, 'start_practice')).toBe(welcome);
   });
 
   it('treats a corrupted persisted clip or inaccessible storage as an optional cache miss', async () => {

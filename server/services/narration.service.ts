@@ -79,8 +79,6 @@ export class NarrationService {
         'show_welcome',
         'teach_lesson',
         'continue_teaching',
-        'start_practice',
-        'submit_answer',
         'resume_session',
       ].includes(tool)
     )

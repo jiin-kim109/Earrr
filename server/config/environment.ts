@@ -133,7 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     ...(endpoint && apiKey && env.EARRR_NARRATION_CACHE !== '0'
       ? {
           narrationCachePath: resolve(
-            env.WEBSITE_SITE_NAME ? env.HOME || '/home' : 'data',
+            env.WEBSITE_SITE_NAME ? '/home' : 'data',
             'earrr-narration-cache',
           ),
         }

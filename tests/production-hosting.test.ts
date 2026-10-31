@@ -1,4 +1,5 @@
 import express from 'express';
+import { resolve } from 'node:path';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../server/config/environment.js';
@@ -23,6 +24,25 @@ function api(environment: NodeJS.ProcessEnv = {}) {
 }
 
 describe('configured production hosting', () => {
+  it('stores narration in the App Service persistent mount rather than the process home', () => {
+    const environment = {
+      ...publicEnvironment,
+      AZURE_OPENAI_ENDPOINT: 'https://example.openai.azure.com',
+      AZURE_OPENAI_API_KEY: 'fixture-private-key',
+      WEBSITE_SITE_NAME: 'earrr-fixture',
+      HOME: '/tmp/runtime-profile',
+    };
+    expect(loadConfig(environment).narrationCachePath).toBe(
+      resolve('/home', 'earrr-narration-cache'),
+    );
+    expect(
+      loadConfig({ ...environment, EARRR_NARRATION_CACHE: '0' }).narrationCachePath,
+    ).toBeUndefined();
+    expect(loadConfig({ ...environment, WEBSITE_SITE_NAME: '' }).narrationCachePath).toBe(
+      resolve('data', 'earrr-narration-cache'),
+    );
+  });
+
   it('keeps local listeners private and honors the platform port in production', () => {
     expect(loadConfig({}).listenHost).toBe('127.0.0.1');
     expect(loadConfig({ EARRR_LISTEN_HOST: '' }).listenHost).toBe('127.0.0.1');

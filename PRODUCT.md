@@ -323,6 +323,8 @@ without excessive praise. The player is treated as a musician at every level.
     another generation. Accept only the approved script, voice, speed and format,
     never client-uploaded audio or arbitrary conversation. Bound memory and disk
     storage; retain recordings across restarts without changing learning saves.
+    On App Service, use its persistent `/home` mount explicitly, not the process
+    HOME directory, which may belong to the temporary runtime container.
     Cache misses, corrupt clips and optional retrieval failures use native speech.
     Insert completed playback as assistant context; mark interrupted delivery
     explicitly without claiming the unheard remainder was spoken. Cached voice

@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api } from '../frontend/lib/api.js';
+import { api, prepareRealtimeDisconnect } from '../frontend/lib/api.js';
 import { RealtimeConnection } from '../frontend/coach/realtime.js';
 import { presentationInstructions } from '../server/services/agent/presentation.js';
 import type { Presentation } from '../server/types/agent.types.js';
 
-vi.mock('../frontend/lib/api.js', () => ({ api: vi.fn() }));
+vi.mock('../frontend/lib/api.js', () => ({
+  api: vi.fn(),
+  prepareRealtimeDisconnect: vi.fn(),
+}));
 
 class Channel {
   readyState = 'connecting';
@@ -55,7 +58,10 @@ const handlers = () => ({
 });
 function setup() {
   vi.stubGlobal('RTCPeerConnection', Peer);
-  vi.mocked(api).mockResolvedValue({ answer: 'v=0 test answer' });
+  vi.mocked(api).mockReset().mockResolvedValue({ answer: 'v=0 test answer' });
+  vi.mocked(prepareRealtimeDisconnect)
+    .mockReset()
+    .mockReturnValue(vi.fn(async () => undefined));
 }
 afterEach(() => {
   vi.restoreAllMocks();
@@ -63,6 +69,75 @@ afterEach(() => {
 });
 
 describe('one realtime connection with optional microphone', () => {
+  it('releases the exact server connection once and waits for its cleanup before reconnecting', async () => {
+    setup();
+    const firstId = crypto.randomUUID();
+    const nextId = crypto.randomUUID();
+    let released!: () => void;
+    const release = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          released = resolve;
+        }),
+    );
+    vi.mocked(prepareRealtimeDisconnect).mockReturnValueOnce(release);
+    vi.mocked(api)
+      .mockResolvedValueOnce({ answer: 'v=0 first answer', connectionId: firstId })
+      .mockResolvedValueOnce({ answer: 'v=0 next answer', connectionId: nextId });
+    const connection = new RealtimeConnection(handlers());
+    await connection.connect('session');
+    connection.disconnect();
+    connection.disconnect();
+    expect(release).toHaveBeenCalledExactlyOnceWith(firstId);
+    const next = connection.connect('session');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(api).toHaveBeenCalledOnce();
+    released();
+    await next;
+    expect(api).toHaveBeenCalledTimes(2);
+    connection.disconnect();
+  });
+
+  it('releases a negotiation that finishes after cancellation without attaching its old answer', async () => {
+    setup();
+    let negotiated!: (result: unknown) => void;
+    vi.mocked(api).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          negotiated = resolve;
+        }),
+    );
+    const release = vi.fn(async () => undefined);
+    vi.mocked(prepareRealtimeDisconnect).mockReturnValueOnce(release);
+    const remote = vi.spyOn(Peer.prototype, 'setRemoteDescription');
+    const connection = new RealtimeConnection(handlers());
+    const pending = connection.connect('session');
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(negotiated).toBeDefined());
+    connection.disconnect();
+    const connectionId = crypto.randomUUID();
+    negotiated({ answer: 'v=0 old answer', connectionId });
+    await rejected;
+    expect(release).toHaveBeenCalledExactlyOnceWith(connectionId);
+    expect(remote).not.toHaveBeenCalled();
+  });
+
+  it('releases a negotiated call if the browser rejects the SDP answer without retrying', async () => {
+    setup();
+    const connectionId = crypto.randomUUID();
+    vi.mocked(api).mockResolvedValueOnce({ answer: 'v=0 unsupported answer', connectionId });
+    vi.spyOn(Peer.prototype, 'setRemoteDescription').mockRejectedValueOnce(
+      new Error('Unsupported SDP.'),
+    );
+    const release = vi.fn(async () => undefined);
+    vi.mocked(prepareRealtimeDisconnect).mockReturnValueOnce(release);
+    const connection = new RealtimeConnection(handlers());
+    await expect(connection.connect('session')).rejects.toThrow('Unsupported SDP');
+    expect(release).toHaveBeenCalledExactlyOnceWith(connectionId);
+    expect(connection.connected).toBe(false);
+    expect(api).toHaveBeenCalledOnce();
+  });
+
   it('updates native speech speed only at the next response boundary and does not reconnect', async () => {
     setup();
     const send = vi.spyOn(Channel.prototype, 'send');

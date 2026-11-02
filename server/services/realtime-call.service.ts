@@ -25,6 +25,7 @@ const transcriptionUsage = z.object({
 interface Call {
   key: string;
   leaseId: string;
+  sessionId?: string;
   callId: string;
   socket: WebSocket;
   pending: Promise<void>;
@@ -64,7 +65,8 @@ export class RealtimeCallService {
     ip: string,
     signal: AbortSignal,
     negotiate: (signal: AbortSignal) => Promise<{ answer: string; callId: string }>,
-  ): Promise<string> {
+    sessionId?: string,
+  ): Promise<{ answer: string; connectionId: string }> {
     if (this.closing) throw AppError.create('voice_limit_unavailable');
     const controller = new AbortController();
     let finished!: () => void;
@@ -118,6 +120,7 @@ export class RealtimeCallService {
       call = {
         key,
         leaseId,
+        sessionId,
         callId: result.callId,
         socket,
         pending: Promise.resolve(),
@@ -129,7 +132,7 @@ export class RealtimeCallService {
       await once(socket, 'open', { signal: activeSignal });
       activeSignal.throwIfAborted();
       if (call.stopping) throw AppError.create('voice_limit_unavailable');
-      return result.answer;
+      return { answer: result.answer, connectionId: leaseId };
     } catch (error) {
       if (call) await this.stop(call);
       else if (claimed) {
@@ -141,6 +144,13 @@ export class RealtimeCallService {
       this.connecting.delete(controller);
       finished();
     }
+  }
+
+  async disconnect(sessionId: string, connectionId: string) {
+    const call = [...this.calls].find(
+      (call) => call.sessionId === sessionId && call.leaseId === connectionId,
+    );
+    if (call) await this.stop(call);
   }
 
   private observe(call: Call) {

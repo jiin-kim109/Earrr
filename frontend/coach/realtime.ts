@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { api } from '../lib/api.js';
+import { api, prepareRealtimeDisconnect } from '../lib/api.js';
 import type { Presentation } from '../../server/types/agent.types.js';
 
 export interface ResponseRequest {
@@ -75,6 +75,8 @@ export class RealtimeConnection {
   private microphoneDeviceId = '';
   private microphoneRequest = 0;
   private voiceSpeed: number | undefined;
+  private release: (() => Promise<void>) | null = null;
+  private releasing: Promise<void> = Promise.resolve();
 
   constructor(private readonly handlers: Handlers) {}
 
@@ -91,6 +93,10 @@ export class RealtimeConnection {
     this.opened = false;
     this.controller = new AbortController();
     const controller = this.controller;
+    const release = prepareRealtimeDisconnect(sessionId);
+    await this.releasing;
+    if (controller.signal.aborted || this.controller !== controller)
+      throw new DOMException('Connection cancelled.', 'AbortError');
     const peer = new RTCPeerConnection();
     this.peer = peer;
     const transceiver = peer.addTransceiver('audio', { direction: 'sendrecv' });
@@ -154,11 +160,20 @@ export class RealtimeConnection {
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
       if (!offer.sdp) throw new Error('The browser could not create an audio connection offer.');
-      const { answer } = await api<{ answer: string }>('/realtime/connect', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId, sdp: offer.sdp }),
-        signal: controller.signal,
-      });
+      const { answer, connectionId } = await api<{ answer: string; connectionId?: string }>(
+        '/realtime/connect',
+        {
+          method: 'POST',
+          body: JSON.stringify({ sessionId, sdp: offer.sdp }),
+          signal: controller.signal,
+        },
+      );
+      const close = connectionId ? () => release(connectionId) : null;
+      if (controller.signal.aborted || this.controller !== controller) {
+        await close?.();
+        throw new DOMException('Connection cancelled.', 'AbortError');
+      }
+      this.release = close;
       await peer.setRemoteDescription({ type: 'answer', sdp: answer });
       await ready;
       if (controller.signal.aborted || this.controller !== controller)
@@ -384,5 +399,8 @@ export class RealtimeConnection {
     this.handlers.microphone(null);
     this.opened = false;
     this.voiceSpeed = undefined;
+    const release = this.release;
+    this.release = null;
+    if (release) this.releasing = release();
   }
 }

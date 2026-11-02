@@ -461,6 +461,59 @@ describe('server-only realtime negotiation', () => {
     expect(upstream[1]?.headers.get('authorization')).toBe('Bearer ephemeral-secret-for-unit-test');
   });
 
+  it('releases only the explicitly closed voice connection and preserves usage and a newer connection', async () => {
+    let serial = 0;
+    const fetcher: typeof fetch = async (input) =>
+      String(input).endsWith('client_secrets')
+        ? Response.json({ value: 'ephemeral-fixture' })
+        : new Response('v=0\r\ns=fixture\r\n', {
+            status: 201,
+            headers: { Location: `/v1/realtime/calls/rtc_release_${++serial}` },
+          });
+    voice = await createVoiceFixture(config, store);
+    app = (await createApp(config, store, fetcher, voice.calls)).app;
+    await start('triads', 'coach');
+    const connect = () =>
+      request(app)
+        .post('/api/realtime/connect')
+        .set('x-earrr-client', '1')
+        .send({ sessionId, sdp: `v=0\r\ns=${'offer'.repeat(30)}` });
+    const first = await connect().expect(200);
+    const id = first.body.connectionId;
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    const close = (connectionId: string, owner = sessionId) =>
+      request(app)
+        .post('/api/realtime/disconnect')
+        .set('x-earrr-client', '1')
+        .send({ sessionId: owner, connectionId });
+    voice.sockets.get('rtc_release_1')!.send(
+      JSON.stringify({
+        type: 'response.done',
+        response: { id: 'used', usage: { total_tokens: 12345 } },
+      }),
+    );
+    const limit = async () => {
+      const row = await store.db.prepare('SELECT data FROM earrr_voice_limits').get();
+      return JSON.parse(String(row!.data));
+    };
+    await expect.poll(async () => (await limit()).usage.length).toBe(1);
+    await close(id, randomUUID()).expect(204);
+    await close(randomUUID()).expect(204);
+    expect(voice.hangups).toEqual([]);
+    await close(id).expect(204);
+    expect(voice.hangups).toEqual(['rtc_release_1']);
+    expect((await limit()).usage[0].tokens).toBe(12345);
+    const second = await connect().expect(200);
+    await close(id).expect(204);
+    expect((await limit()).lease.callId).toBe('rtc_release_2');
+    await connect().expect(409);
+    await tool('end_session').expect(200);
+    await close(second.body.connectionId).expect(204);
+    expect((await limit()).lease).toBeNull();
+    expect((await limit()).usage[0].tokens).toBe(12345);
+    expect(voice.hangups).toEqual(['rtc_release_1', 'rtc_release_2']);
+  });
+
   it('reports provider rejection explicitly and preserves the exercise', async () => {
     const fetcher: typeof fetch = async () =>
       Response.json({ error: { message: 'unauthorized' } }, { status: 401 });

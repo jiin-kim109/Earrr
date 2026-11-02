@@ -160,7 +160,7 @@ export type PresentationPart =
       requiredCorrect: number;
       answered: number;
     }
-  | { kind: 'next_question' | 'listening_cue'; cue?: string };
+  | { kind: 'next_question' | 'listening_cue'; cue?: string; required?: AnswerField[] };
 
 export interface Presentation {
   purpose: Exclude<ReplyPurpose, 'none'>;

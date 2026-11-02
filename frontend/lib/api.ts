@@ -97,6 +97,29 @@ export const acknowledgeTeaching = (sessionId: string, presentationId: string) =
     body: JSON.stringify({ sessionId, presentationId }),
   });
 
+export function prepareRealtimeDisconnect(sessionId: string) {
+  const owner = credentials();
+  return (connectionId: string): Promise<void> => {
+    const current = credentials();
+    const access = current.identity === owner.identity ? current : owner;
+    return trackRequest(
+      fetch('/api/realtime/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-earrr-client': '1',
+          ...access.headers,
+        },
+        body: JSON.stringify({ sessionId, connectionId }),
+        keepalive: true,
+        signal: AbortSignal.timeout(15_000),
+      })
+        .then(() => undefined)
+        .catch(() => undefined),
+    );
+  };
+}
+
 export async function narrationAudio(url: string, signal: AbortSignal): Promise<ArrayBuffer> {
   if (!/^\/api\/narration\/[a-f0-9]{64}$/.test(url)) throw new Error('Invalid narration URL.');
   const response = await fetch(url, {

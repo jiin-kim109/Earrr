@@ -85,6 +85,11 @@ describe('server-owned Jinja prompt templates', () => {
     expect(presentationInstructions('teaching')).toContain('entire current presentation');
     expect(presentationInstructions('instruction')).toContain('musical question');
     expect(presentationInstructions('cue')).toContain('next-question cue');
+    for (const purpose of ['cue', 'feedback'] as const) {
+      expect(presentationInstructions(purpose)).toContain('required fields');
+      expect(presentationInstructions(purpose)).toContain('ask for the interval name');
+      expect(presentationInstructions(purpose)).toContain('not a direction question');
+    }
     expect(presentationInstructions('message')).toBeUndefined();
   });
 

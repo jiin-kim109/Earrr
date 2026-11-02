@@ -1195,6 +1195,7 @@ class Studio {
   }
   private async play(plan: AudioPlan, sessionId: string, exerciseId?: string, replay = false) {
     const playback = ++this.playbackGeneration;
+    const generation = this.generation;
     this.patch({
       phase: 'playing',
       musicPlayback: { exerciseId, replay },
@@ -1203,9 +1204,14 @@ class Studio {
     try {
       const finished = await this.audio.play(plan, () => {
         if (exerciseId)
-          void acknowledgePlayback(sessionId, exerciseId).catch((error: unknown) =>
-            this.reportError(error),
-          );
+          void acknowledgePlayback(sessionId, exerciseId).catch((error: unknown) => {
+            if (
+              playback === this.playbackGeneration &&
+              generation === this.generation &&
+              this.state.snapshot?.session?.id === sessionId
+            )
+              this.reportError(error);
+          });
       });
       if (playback === this.playbackGeneration && finished && this.state.phase === 'playing')
         this.patch({ phase: 'listening' });

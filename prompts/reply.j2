@@ -14,3 +14,6 @@ For Welcome, introduce yourself as the AI coach and the path from pitch and inte
 {%- elif purpose == "message" -%}
 Address the learner's question, hint request or status briefly using the current lesson context.
 {%- endif -%}
+{% if purpose == "cue" or purpose == "feedback" %}
+The required fields in next_question or listening_cue define the task. Ask only for those fields, not the given facts in cue. If required is interval, ask for the interval name; ascending, descending or together describes playback, not a direction question. Keep the cue short, without explaining it.
+{%- endif -%}

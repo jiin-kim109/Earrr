@@ -216,6 +216,54 @@ describe('browser progress and workspace ownership', () => {
     expect(access.credentials().headers.Authorization).toBe('Bearer fixture-access');
   });
 
+  it('keeps the original workspace credentials when closing a voice call after identity changes', async () => {
+    await access.restoreGuest();
+    const { prepareRealtimeDisconnect } = await import('../frontend/lib/api.js');
+    const sessionId = randomUUID();
+    const connectionId = randomUUID();
+    const release = prepareRealtimeDisconnect(sessionId);
+    await access.restoreAccount(session(), false);
+    fetcher.mockClear();
+    await release(connectionId);
+    expect(fetcher).toHaveBeenCalledOnce();
+    const [path, request] = fetcher.mock.calls[0]!;
+    expect(path).toBe('/api/realtime/disconnect');
+    expect(request).toMatchObject({ method: 'POST', keepalive: true });
+    expect(request?.headers).toMatchObject({
+      'x-earrr-client': '1',
+      'x-earrr-guest': 'guest-fixture-capability',
+    });
+    expect(request?.headers).not.toHaveProperty('Authorization');
+    expect(JSON.parse(String(request?.body))).toEqual({ sessionId, connectionId });
+    expect(actions).toEqual([]);
+  });
+
+  it('uses a refreshed token for the same account when releasing a long-running connection', async () => {
+    const account = session();
+    await access.restoreAccount(account, false);
+    const { prepareRealtimeDisconnect } = await import('../frontend/lib/api.js');
+    const release = prepareRealtimeDisconnect(randomUUID());
+    access.configureSession(() => ({ ...account, access_token: 'newer-account-token' }));
+    fetcher.mockClear();
+    await release(randomUUID());
+    expect(fetcher.mock.calls[0]![1]?.headers).toMatchObject({
+      Authorization: 'Bearer newer-account-token',
+    });
+  });
+
+  it('does not turn best-effort exit cleanup into a new fatal error or retry loop', async () => {
+    await access.restoreGuest();
+    const { prepareRealtimeDisconnect } = await import('../frontend/lib/api.js');
+    const { onFatalError } = await import('../frontend/errors/failure.js');
+    const fatal = vi.fn();
+    onFatalError(fatal);
+    fetcher.mockClear().mockRejectedValueOnce(new TypeError('The page went offline.'));
+    await expect(prepareRealtimeDisconnect(randomUUID())(randomUUID())).resolves.toBeUndefined();
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fatal).not.toHaveBeenCalled();
+    expect(actions).toEqual([]);
+  });
+
   it('does not recreate a cleared guest save when an old response arrives after account login', async () => {
     await access.restoreGuest();
     const previousOwner = access.scope();

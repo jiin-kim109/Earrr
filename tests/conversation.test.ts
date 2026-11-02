@@ -474,6 +474,50 @@ describe('causal single-stream turns', () => {
     expect(errors).toEqual([]);
   });
 
+  it('sends the interval task in the live cue after cancelling a pitch response during navigation', async () => {
+    await tool('play_exercise');
+    await reply();
+    await store.progress.finishIntroduction('intervals-foundation', 'skipped');
+    const sessionId = snapshot.session!.id;
+    const call = (name: ToolName, args: Record<string, unknown> = {}) =>
+      game.execute({ callId: crypto.randomUUID(), sessionId, name, arguments: args }, true);
+    let interval = await call('select_lesson', { skillId: 'intervals-foundation' });
+    for (let miss = 0; miss < 3; miss++)
+      interval = await call('submit_answer', {
+        exerciseId: interval.snapshot.current!.id,
+        answer: { interval: 1 },
+      });
+    snapshot = (await call('select_lesson', { skillId: 'pitch-direction' })).snapshot;
+    loop.text('Which direction was that?');
+    const oldResponse = created();
+    emit({ type: 'output_audio_buffer.started', response_id: oldResponse });
+    const selecting = loop.action('select_lesson', { skillId: 'intervals-foundation' });
+    await selecting;
+    const restarting = loop.action('start_round');
+    emit({
+      type: 'response.output_audio_transcript.delta',
+      response_id: oldResponse,
+      delta: 'What direction do you hear?',
+    });
+    emit({ type: 'response.done', response: { id: oldResponse, status: 'cancelled' } });
+    await restarting;
+    const request = responses().at(-1)!.response as {
+      input: Array<{ content: Array<{ text: string }> }>;
+    };
+    const context = JSON.parse(request.input[0]!.content[0]!.text);
+    expect(context.parts).toEqual([
+      {
+        kind: 'next_question',
+        cue: snapshot.current!.cue,
+        required: ['interval'],
+      },
+    ]);
+    expect(snapshot.current?.skillId).toBe('intervals-foundation');
+    expect(messages.some((message) => message.text === 'What direction do you hear?')).toBe(false);
+    expect(narrate).not.toHaveBeenCalled();
+    expect(errors).toEqual([]);
+  });
+
   it('waits for tool completion before requesting feedback and waits for drained speech before music', async () => {
     await tool('play_exercise');
     expect(execute).toHaveBeenCalledOnce();

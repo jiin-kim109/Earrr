@@ -255,6 +255,10 @@ without excessive praise. The player is treated as a musician at every level.
     and nonfatal. Intentional pause/end does not trigger a failure overlay.
     Expected response cancellations and obsolete playback completions are not failures.
     Bound transient quota-storage retries without reconnecting or disabling enforcement.
+    Explicit disconnect and page exit release only that session's owned Azure
+    connection, including a cancelled negotiation. Late exit requests cannot stop
+    a replacement connection or reset the IP token budget/cooldown. Do not display
+    delayed prior-session playback-receipt errors in a newer session.
 37. Keep the browser tab title fixed to Earrr | Ear training game with a friendly
     AI tutor. for every surface, including account screens.
 38. Tutorial dots are an ungated step selector, not mastery or a completion
@@ -384,6 +388,9 @@ without excessive praise. The player is treated as a musician at every level.
     narration. Navigation invalidates old presentation epochs while allowing
     already-committed grading to finish. Stale results cannot repaint the selected
     lesson or narrate the previous exercise.
+    Each live question cue includes the required answer fields, even when its
+    wording only describes playback. Ascending/descending/together is given
+    information in interval lessons, never a reason to ask for pitch direction.
 53. The major/minor introduction has five steps. Its fourth step compares the
     character of CM, Cm, EM and Em, each with its own explanation, audio and
     changing piano. Mood is a useful listening clue, not a universal emotion rule.

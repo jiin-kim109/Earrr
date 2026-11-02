@@ -15,6 +15,8 @@ const controls = vi.hoisted(() => ({
   calls: vi.fn(),
   settings: vi.fn(),
   readState: vi.fn(),
+  receipt: vi.fn(),
+  play: vi.fn(),
 }));
 vi.mock('../frontend/audio/audio.js', () => ({
   AudioEngine: class {
@@ -23,7 +25,7 @@ vi.mock('../frontend/audio/audio.js', () => ({
     detachVoice = vi.fn();
     setVolume = vi.fn();
     attachMicrophone = vi.fn();
-    play = vi.fn(async () => true);
+    play = controls.play;
     unlock = vi.fn(async () => undefined);
   },
 }));
@@ -57,7 +59,7 @@ vi.mock('../frontend/storage/access.js', () => ({
 vi.mock('../frontend/lib/api.js', () => ({
   callTool: controls.calls,
   callAgentTool: controls.calls,
-  acknowledgePlayback: vi.fn(async () => undefined),
+  acknowledgePlayback: controls.receipt,
   acknowledgeTeaching: vi.fn(),
   getState: controls.readState,
   getCurriculum: vi.fn(),
@@ -77,6 +79,11 @@ beforeEach(async () => {
   controls.connected = false;
   controls.owner = 'guest:entry-fixture';
   controls.output.mockResolvedValue();
+  controls.receipt.mockResolvedValue(undefined);
+  controls.play.mockImplementation(async (_plan, onStarted) => {
+    onStarted?.();
+    return true;
+  });
   controls.connect.mockImplementation(async () => {
     controls.connected = true;
   });
@@ -118,6 +125,37 @@ afterEach(async () => {
 });
 
 describe('automatic section activation', () => {
+  it.each([false, true])(
+    'keeps playback-receipt errors scoped to their session after ending=%s',
+    async (ended) => {
+      const { ApiError } = await import('../frontend/errors/api-error.js');
+      let rejectReceipt!: (error: Error) => void;
+      controls.receipt.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectReceipt = reject;
+          }),
+      );
+      await studio.start('solo');
+      expect(rejectReceipt).toBeDefined();
+      if (ended) {
+        await studio.stop();
+        await studio.start('solo');
+      }
+      rejectReceipt(
+        new ApiError(
+          'playback_session_mismatch',
+          'The old playback no longer belongs to this session.',
+          409,
+        ),
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      if (ended) expect(state.getState().error).toBeNull();
+      else expect(state.getState().error).toContain('playback');
+      expect(state.getState().fatalError).toBeNull();
+    },
+  );
+
   it('does not let a late replay snapshot undo the latest speaker volume or tutor speed', async () => {
     const before = structuredClone(state.getState().snapshot!);
     let release!: () => void;

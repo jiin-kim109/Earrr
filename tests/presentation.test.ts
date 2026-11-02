@@ -37,6 +37,37 @@ async function start(id: SkillId) {
 }
 
 describe('one presentation contract across the whole course', () => {
+  it('keeps interval naming explicit when returning from pitch direction and restarting a saved failed round', async () => {
+    let interval = await start('intervals-foundation');
+    for (let miss = 0; miss < 3; miss++) {
+      interval = await call('submit_answer', {
+        exerciseId: interval.snapshot.current!.id,
+        answer: { interval: 1 },
+      });
+    }
+    expect(interval.roundResult?.passed).toBe(false);
+    await call('select_lesson', { skillId: 'pitch-direction' });
+    const selected = await call('select_lesson', { skillId: 'intervals-foundation' });
+    expect(selected.snapshot.session?.awaitingRoundChoice).toBe(true);
+    const round = (await store.progress.round('intervals-foundation'))!;
+    round.remaining[0]!.target.presentation = 'descending';
+    await store.progress.saveRound(round);
+    const restarted = await call('start_round');
+    expect(restarted.reply).toBe('cue');
+    expect(restarted.snapshot.current).toMatchObject({
+      skillId: 'intervals-foundation',
+      required: ['interval'],
+      prompt: 'Name the interval. The two notes sound descending.',
+    });
+    expect(restarted.agent.presentation?.context.parts).toEqual([
+      { kind: 'next_question', cue: 'Two notes descending.', required: ['interval'] },
+    ]);
+    expect(restarted.agent.presentation?.narration).toBeUndefined();
+    expect(narrationText(restarted)).toBeNull();
+    expect(restarted.snapshot.totalAnswers).toBe(3);
+    expect(restarted.snapshot.course.round.answers).toHaveLength(0);
+  });
+
   it('scripts only fixed teaching and leaves every practice cue and answer to live Realtime', async () => {
     sessionId = (await call('start_session', { mode: 'coach', focus: 'triads' })).snapshot.session!
       .id;
@@ -155,6 +186,9 @@ describe('one presentation contract across the whole course', () => {
       expect(
         presentationContext(answer).parts.find((part) => part.kind === 'feedback')?.played,
       ).toEqual(answer.snapshot.feedback?.example);
+      expect(
+        presentationContext(answer).parts.find((part) => part.kind === 'next_question'),
+      ).toMatchObject({ required: answer.snapshot.current!.required });
       expect(answer.agent.context).toEqual(publicToolResult(answer));
       expect(answer.agent.presentation?.context).toEqual(presentationContext(answer));
       expect(answer.agent.presentation?.instructions).toContain('parts in order');
@@ -183,6 +217,9 @@ describe('one presentation contract across the whole course', () => {
     const next = await call('play_exercise');
     expect(next.reply).toBe('cue');
     expect(presentationContext(next).parts.map((part) => part.kind)).toEqual(['next_question']);
+    expect(presentationContext({ ...next, nextQuestion: false }).parts).toEqual([
+      { kind: 'listening_cue', cue: next.snapshot.current!.cue, required: ['inversion'] },
+    ]);
     expect(next.snapshot.current?.cue).toMatch(/major.*bass position/i);
     expect(publicToolResult(next).current).not.toHaveProperty('prompt');
   });
@@ -223,7 +260,7 @@ describe('one presentation contract across the whole course', () => {
     const next = await call('play_exercise');
     expect(next.reply).toBe('cue');
     expect(presentationContext(next).parts).toEqual([
-      { kind: 'next_question', cue: next.snapshot.current!.cue },
+      { kind: 'next_question', cue: next.snapshot.current!.cue, required: ['interval'] },
     ]);
     expect(next.snapshot.current?.cue).toMatch(/^Two notes (ascending|descending)\.$/);
     expect(publicToolResult(next).current).not.toHaveProperty('prompt');

@@ -13,6 +13,10 @@ const connectionSchema = z
   })
   .strict();
 
+const disconnectionSchema = z
+  .object({ sessionId: z.string().uuid(), connectionId: z.string().uuid() })
+  .strict();
+
 const diagnosticSchema = z
   .object({
     kind: z.enum(['audio', 'connection']),
@@ -31,10 +35,20 @@ export function sessionRoutes(config: Config, fetcher: typeof fetch, calls: Real
       if (!res.writableEnded) controller.abort();
     });
     const ip = realtimeClientIp(req, config);
-    const answer = await calls.connect(ip, controller.signal, async (signal) =>
-      game.sessions.connect(sessionId, config, await game.snapshot(), sdp, signal, fetcher, ip),
+    const connection = await calls.connect(
+      ip,
+      controller.signal,
+      async (signal) =>
+        game.sessions.connect(sessionId, config, await game.snapshot(), sdp, signal, fetcher, ip),
+      sessionId,
     );
-    reply(res, { answer, sessionId });
+    reply(res, { ...connection, sessionId });
+  });
+  router.post('/realtime/disconnect', async (req, res) => {
+    const { sessionId, connectionId } = disconnectionSchema.parse(req.body);
+    if (await requestGame(res).store.sessions.get(sessionId))
+      await calls.disconnect(sessionId, connectionId);
+    res.status(204).end();
   });
   router.get('/diagnostics', async (_req, res) =>
     reply(res, { events: await requestGame(res).store.sessions.diagnostics() }),

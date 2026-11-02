@@ -250,9 +250,13 @@ export function presentationContext(result: ResultData): { parts: PresentationPa
   }
   if (result.lessonCompleted)
     parts.push({ kind: 'checkpoint', nextLesson: result.snapshot.course.nextLesson });
-  if (result.nextQuestion) parts.push({ kind: 'next_question', cue: result.snapshot.current?.cue });
+  const questionCue = {
+    cue: result.snapshot.current?.cue,
+    required: result.snapshot.current?.required,
+  };
+  if (result.nextQuestion) parts.push({ kind: 'next_question', ...questionCue });
   else if (result.reply === 'cue' && result.audio)
-    parts.push({ kind: 'listening_cue', cue: result.snapshot.current?.cue });
+    parts.push({ kind: 'listening_cue', ...questionCue });
   return { parts };
 }
 
